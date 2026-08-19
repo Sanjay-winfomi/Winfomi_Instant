@@ -24,9 +24,10 @@ class DemoSessionRecord(Base):
     problem_text: Mapped[str] = mapped_column(Text, nullable=False)
     outcome: Mapped[str] = mapped_column(String(20), nullable=False)
     mode: Mapped[str] = mapped_column(String(20), nullable=False, default="fallback")
-    dataset: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    dataset: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     requirement: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    dataset_records: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     workflow: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     critic: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     critic_history: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)

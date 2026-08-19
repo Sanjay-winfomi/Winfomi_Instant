@@ -16,7 +16,7 @@ def test_is_valid_tool_rejects_hallucinated_name():
 
 def test_validate_workflow_strips_unregistered_tool_and_logs_reason():
     workflow = Workflow(steps=[
-        WorkflowStep(tool="READ_DATA", params={"dataset": "tickets"}),
+        WorkflowStep(tool="READ_DATA", params={}),
         WorkflowStep(tool="RUN_ARBITRARY_CODE", params={}),
         WorkflowStep(tool="GENERATE_REPORT", params={}),
     ])
@@ -28,18 +28,36 @@ def test_validate_workflow_strips_unregistered_tool_and_logs_reason():
 
 
 def test_validate_workflow_enforces_max_step_limit():
-    steps = [WorkflowStep(tool="READ_DATA", params={"dataset": "tickets"}) for _ in range(MAX_WORKFLOW_STEPS + 3)]
+    steps = [WorkflowStep(tool="READ_DATA", params={}) for _ in range(MAX_WORKFLOW_STEPS + 3)]
     result = validate_workflow(Workflow(steps=steps))
     assert len(result.valid_steps) == MAX_WORKFLOW_STEPS
     assert any(r["tool"] is None for r in result.rejected)
 
 
-def test_read_data_then_check_condition_execution():
-    state = {"data": None, "requirement_text": "", "log": []}
-    records = run_tool("READ_DATA", {"dataset": "inventory"}, state)
+def test_read_data_reads_from_injected_dataset_records():
+    """READ_DATA never touches a fixed mock dataset - it reads whatever sample
+    records were synthesized for this request (state["dataset_records"])."""
+    synthetic_records = [
+        {"id": "item-001", "stock_level": 14, "supplier": "ABC Co"},
+        {"id": "item-002", "stock_level": 80, "supplier": "XYZ Co"},
+    ]
+    state = {"data": None, "dataset_records": synthetic_records, "requirement_text": "", "log": []}
+    records = run_tool("READ_DATA", {}, state)
+    assert records == synthetic_records
+
     state["data"] = records
-    scored = run_tool("ANALYZE", {"method": "stock_percentage", "output_field": "stock_pct"}, state)
-    state["data"] = scored
-    result = run_tool("CHECK_CONDITION", {"field": "stock_pct", "operator": "<", "value": 20}, state)
+    result = run_tool("CHECK_CONDITION", {"field": "stock_level", "operator": "<", "value": 20}, state)
     assert "matched" in result and "unmatched" in result
-    assert all(r["stock_pct"] < 20 for r in result["matched"])
+    assert all(r["stock_level"] < 20 for r in result["matched"])
+
+
+def test_analyze_sums_numeric_fields_generically_without_weights():
+    state = {"data": [{"id": "a", "amount": 10, "count": 5}], "requirement_text": "", "log": []}
+    out = run_tool("ANALYZE", {"output_field": "total"}, state)
+    assert out[0]["total"] == 15
+
+
+def test_route_tags_records_with_planner_supplied_team_no_fixed_directory():
+    state = {"data": [{"id": "a"}, {"id": "b"}], "requirement_text": "", "log": []}
+    out = run_tool("ROUTE", {"team": "Escalation team"}, state)
+    assert all(r["team"] == "Escalation team" for r in out)

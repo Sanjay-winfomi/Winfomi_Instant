@@ -5,23 +5,9 @@ from __future__ import annotations
 from database.engine import get_db_session
 from database.models import DemoSessionRecord, SessionAction, SessionRecordRun
 from schemas.execution import ExecutionResult
+from schemas.requirement import Requirement
 from schemas.session import DemoResult
 from tools.mini_app import build_mini_app_info
-
-
-def _derive_dataset(result: DemoResult) -> str | None:
-    steps = []
-    if result.outcome == "blueprint" and result.blueprint:
-        steps = result.blueprint.proposed_workflow
-        for step in steps:
-            if step.get("tool") == "READ_DATA":
-                return step.get("params", {}).get("dataset")
-        return None
-    if result.workflow:
-        for step in result.workflow.steps:
-            if step.tool == "READ_DATA":
-                return step.params.get("dataset")
-    return None
 
 
 def _to_record(result: DemoResult) -> DemoSessionRecord:
@@ -30,7 +16,7 @@ def _to_record(result: DemoResult) -> DemoSessionRecord:
         problem_text=result.requirement.goal if result.requirement else "",
         outcome=result.outcome,
         mode=result.mode,
-        dataset=_derive_dataset(result),
+        dataset=result.requirement.record_label if result.requirement else None,
         requirement=result.requirement.model_dump() if result.requirement else None,
         workflow=result.workflow.model_dump() if result.workflow else None,
         critic=result.critic.model_dump() if result.critic else None,
@@ -39,14 +25,16 @@ def _to_record(result: DemoResult) -> DemoSessionRecord:
         blueprint=result.blueprint.model_dump() if result.blueprint else None,
         rejected_steps=result.rejected_steps,
         error=result.error,
+        dataset_records=result.dataset_records,
     )
 
 
 def _to_demo_result(record: DemoSessionRecord) -> DemoResult:
+    requirement = Requirement(**record.requirement) if record.requirement else None
     return DemoResult(
         session_id=record.session_id,
         outcome=record.outcome,
-        requirement=record.requirement,
+        requirement=requirement,
         workflow=record.workflow,
         critic=record.critic,
         critic_history=record.critic_history or [],
@@ -55,7 +43,12 @@ def _to_demo_result(record: DemoSessionRecord) -> DemoResult:
         rejected_steps=record.rejected_steps or [],
         mode=record.mode,
         error=record.error,
-        mini_app=build_mini_app_info(record.dataset) if record.outcome == "executed" else None,
+        dataset_records=record.dataset_records or [],
+        mini_app=(
+            build_mini_app_info(record.dataset_records or [], requirement)
+            if record.outcome == "executed"
+            else None
+        ),
     )
 
 
@@ -77,12 +70,6 @@ def get(session_id: str) -> DemoResult | None:
     with get_db_session() as session:
         record = session.get(DemoSessionRecord, session_id)
         return _to_demo_result(record) if record else None
-
-
-def get_dataset(session_id: str) -> str | None:
-    with get_db_session() as session:
-        record = session.get(DemoSessionRecord, session_id)
-        return record.dataset if record else None
 
 
 def save_record_run(session_id: str, record_id: str, execution: ExecutionResult) -> None:

@@ -2,9 +2,13 @@
 
 Requirement -> Planner -> Validate (Tool Registry safety layer) -> Critic
   -> (score < threshold and retries remain) -> back to Planner with feedback
-  -> (score >= threshold) -> Executor -> done
+  -> (score >= threshold) -> synthesize sample data -> Executor -> done
   -> (retries exhausted, still rejected) -> Workflow Blueprint
   -> (Executor hits a genuine capability gap) -> Workflow Blueprint
+
+Sample data is generated fresh per requirement (agents/data_synthesizer.py) rather
+than read from a fixed set of pre-built mock datasets - the Executor itself never
+calls an LLM or generates data; it only ever processes records it's handed.
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ from typing import Any, TypedDict
 from langgraph.graph import END, StateGraph
 
 from agents.critic_agent import critique_workflow
+from agents.data_synthesizer import synthesize_dataset
 from agents.executor_agent import UnsupportedCapabilityError, run_workflow
 from agents.planner_agent import plan_workflow
 from agents.requirement_agent import analyze_requirement
@@ -40,6 +45,8 @@ class PipelineState(TypedDict, total=False):
     attempt: int
     outcome: str  # executed | blueprint | error
     execution: ExecutionResult
+    dataset_records: list[dict[str, Any]]
+    dataset_mode: str
     blueprint: WorkflowBlueprint
     error: str | None
 
@@ -78,18 +85,22 @@ def _critic_node(state: PipelineState) -> dict:
 
 
 def _executor_node(state: PipelineState) -> dict:
+    requirement: Requirement = state["requirement"]
+    records, dataset_mode = synthesize_dataset(requirement)
+    logger.info("Synthesized %d sample '%s' record(s) (mode=%s)", len(records), requirement.record_label, dataset_mode)
+
     try:
-        execution = run_workflow(state["workflow"], state["text"])
-        return {"execution": execution, "outcome": "executed"}
+        execution = run_workflow(state["workflow"], state["text"], records=records, record_label=requirement.record_label)
+        return {"execution": execution, "outcome": "executed", "dataset_records": records, "dataset_mode": dataset_mode}
     except UnsupportedCapabilityError as exc:
         logger.info("Executor hit a capability gap: %s", exc)
         blueprint = _build_blueprint(state, integration_note=(
-            f"This workflow needs a '{exc.field}' field that isn't part of the current "
-            f"'{exc.dataset}' mock dataset. Connecting a live data source that provides "
-            f"this field (e.g. an HR/attendance system, a CRM field, or a data warehouse "
-            f"column) would let this step run for real."
+            f"This workflow needs a '{exc.field}' field that isn't part of the generated "
+            f"sample data for '{exc.record_label}' records. Connecting a live data source "
+            f"that actually provides this field (e.g. a CRM field, an internal system, or "
+            f"a data warehouse column) would let this step run for real."
         ))
-        return {"blueprint": blueprint, "outcome": "blueprint"}
+        return {"blueprint": blueprint, "outcome": "blueprint", "dataset_records": records, "dataset_mode": dataset_mode}
 
 
 def _blueprint_node(state: PipelineState) -> dict:

@@ -6,7 +6,10 @@
 Replaces the traditional B2B presales flow (contact → sales → requirement discussion →
 presales engineer → scheduled demo) with an instant self-serve one: type a business
 problem, watch four AI agents design, validate, and **actually run** a small workflow
-against real mock data, and interact with the result — all in seconds.
+against a sample dataset generated for that exact problem, and interact with the
+result — all in seconds. There is no fixed set of pre-built business domains: the
+sample data is synthesized fresh per request, so a problem nobody anticipated gets a
+real workflow and real sample records too, not a forced fit into the wrong category.
 
 ## Features
 
@@ -21,13 +24,18 @@ against real mock data, and interact with the result — all in seconds.
   criteria. The overall score is always recomputed in Python from the sub-scores (never
   trusts the model's own claimed total). Workflows scoring below 8.0 are sent back to
   the Planner with feedback, up to 2 retries, before falling back to a Blueprint.
-- **Real execution, not scripted output** — the Executor runs each approved step against
-  actual mock datasets (`backend/mock_data/*.json`) and returns real per-step results.
-- **"Never dead-end" fallback** — if a request needs a data field the mock dataset
-  genuinely doesn't have (e.g. employee attendance tracking), the Executor detects the
-  capability gap and the app renders a **Workflow Blueprint** (what was understood, the
-  proposed workflow, tools required, and what integration would be needed) instead of an
-  error.
+- **No fixed mock datasets** — there's no hardcoded set of business domains (no
+  `tickets.json`/`customers.json`/etc). Every request gets its own sample dataset,
+  synthesized from the Requirement Agent's own `record_label`/`fields`
+  (`backend/agents/data_synthesizer.py`): the LLM generates realistic records when
+  live, a deterministic field-name-driven generator when not. The Executor then runs
+  each approved step against those real (synthesized) records and returns real
+  per-step results — it never calls an LLM or invents data itself.
+- **"Never dead-end" fallback** — if a step ends up referencing a field that was never
+  part of the synthesized data (most often a live-LLM planning mistake), the Executor
+  detects the capability gap and the app renders a **Workflow Blueprint** (what was
+  understood, the proposed workflow, tools required, and what integration would be
+  needed) instead of an error.
 - **Demo-safe by default** — with no LLM API key configured, every agent falls back to a
   deterministic, rule-based implementation, so the full pipeline — including the Critic
   retry loop and Blueprint fallback — is fully demoable with zero external dependencies.
@@ -36,11 +44,10 @@ against real mock data, and interact with the result — all in seconds.
 - **Real persistence** — every demo session (requirement, workflow, critic scores,
   execution trace, blueprint) is written to PostgreSQL, so a session survives a backend
   restart and can be inspected directly in pgAdmin4.
-- **"Try it live" mini-app** — once a workflow executes, pick any real record from the
-  dataset it used (a specific ticket, customer, invoice, product, or inventory item)
-  and re-run the same approved workflow against just that one record, then take a
-  domain-appropriate action (approve, escalate, alert supplier, …) — a genuine action,
-  persisted to PostgreSQL, not a decorative button.
+- **"Try it live" mini-app** — once a workflow executes, pick any one of the
+  synthesized sample records and re-run the same approved workflow against just that
+  record, then take a generic decision action (Approve / Flag for review) — a genuine
+  action, persisted to PostgreSQL, not a decorative button.
 
 ## Architecture
 
@@ -59,13 +66,17 @@ backend/ (FastAPI)
        (agents/*.py, deterministic fallback + optional live LLM via agents/llm_provider.py)
               │
               ▼ (critic.approved)
-          Executor Agent ──▶ tools/registry.py ──▶ backend/mock_data/*.json
+     agents/data_synthesizer.py ──▶ sample records tailored to the requirement
+       (no fixed mock datasets - LLM-generated live, deterministic fallback otherwise)
               │
-              ▼ (capability gap)
+              ▼
+          Executor Agent ──▶ tools/registry.py (processes the synthesized records)
+              │
+              ▼ (capability gap: a field genuinely missing from the records)
         Workflow Blueprint
               │
               ▼ (every outcome)
-   api/store.py ──▶ PostgreSQL (demo_sessions table)
+   api/store.py ──▶ PostgreSQL (demo_sessions table, incl. the synthesized records)
 
   "Try it live" (frontend/src/components/MiniApp.tsx):
    pick record ──▶ POST /records/{id}/run ──▶ Executor (single-record re-run)
@@ -88,23 +99,23 @@ build_blueprint)`. See `backend/graph/orchestrator.py`.
 - **LLM:** Anthropic Claude, wired behind a small `LLMProvider` abstraction
   (`backend/agents/llm_provider.py`) so OpenAI/Gemini can be added later without
   touching any agent code — only `LLM_PROVIDER` and one new subclass.
-- **Data:** flat JSON mock datasets (`backend/mock_data/`) that the Executor's tools
-  actually operate on, plus **PostgreSQL** for demo-session persistence — via
-  SQLAlchemy 2.0 (`backend/database/`), with tables created automatically on startup
-  (`database/init_db.py`). Every DB access goes through `backend/api/store.py`; no
-  other module touches SQLAlchemy directly.
+- **Data:** no fixed datasets - a small sample dataset is synthesized per request
+  (`backend/agents/data_synthesizer.py`) and is what the Executor's tools actually
+  operate on. **PostgreSQL** handles demo-session persistence (including the
+  synthesized records themselves) via SQLAlchemy 2.0 (`backend/database/`), with
+  tables created automatically on startup (`database/init_db.py`). Every DB access
+  goes through `backend/api/store.py`; no other module touches SQLAlchemy directly.
 
 ## Project Structure
 
 ```
 backend/
-  agents/            the 4 agents + the LLM provider abstraction
-  tools/             the Tool Registry (18 deterministic tools) + mock dataset loader
+  agents/            the 4 agents + the data synthesizer + the LLM provider abstraction
+  tools/             the Tool Registry (18 deterministic tools) + mini-app helpers
   graph/             LangGraph orchestration + the safety/validation layer
   schemas/           Pydantic contracts shared by every agent and the API
   database/          SQLAlchemy engine/session, ORM model, table creation
   api/               FastAPI routes + PostgreSQL-backed session store
-  mock_data/         tickets, customers, employees, inventory, invoices, products
   tests/             unit + integration + end-to-end fixture tests
   main.py            FastAPI app entrypoint (creates DB tables on startup)
 frontend/
@@ -197,14 +208,18 @@ Requires PostgreSQL to be running and reachable via `DATABASE_URL` — the API t
 exercise the real `demo_sessions` table (via `TestClient` as a context manager, so the
 FastAPI lifespan/`init_db()` runs first).
 
-32 tests covering: Requirement Agent schema output, Planner tool-registry compliance,
-Critic scoring determinism, workflow validation (hallucinated tools + step-count limits),
-tool execution, the API endpoints (including 422 on invalid input and 404 on unknown
-sessions), the mini-app endpoints (single-record run, valid/invalid action persistence,
-action log), and 5 end-to-end fixtures run through the *same* generic pipeline —
-including the deliberately out-of-scope "employee attendance" case, which proves the
-engine generates a Blueprint for a genuinely novel domain instead of either crashing or
-being a hardcoded demo.
+37 tests covering: Requirement Agent schema output (including on a genuinely novel
+domain with no analogue in any hand-built dataset), Planner tool-registry compliance,
+the data synthesizer (generates every requested field plus a stable `id`), Critic
+scoring determinism, workflow validation (hallucinated tools + step-count limits),
+tool execution (`READ_DATA` reading from injected synthesized records, not a file;
+`ROUTE` tagging with a Planner-supplied team name, not a fixed employee directory),
+the API endpoints (including 422 on invalid input and 404 on unknown sessions), the
+mini-app endpoints (single-record run, valid/invalid action persistence, action log),
+and 5 end-to-end fixtures run through the *same* generic pipeline for genuinely
+different domains — including one that exists nowhere in any pre-built dataset, and a
+capability-gap test proving the Blueprint fallback still fires correctly when a step
+references a field that was never synthesized (e.g. a hallucinated live-LLM plan).
 
 Frontend has no separate test runner configured for the MVP; it was verified with a
 Playwright-driven browser pass through the full user journey (landing → example chip →
@@ -248,9 +263,10 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
 - **Every result says "Demo fallback mode"** → this is expected with no
   `ANTHROPIC_API_KEY` set. It's a fully functional deterministic mode, not a bug.
 - **A request unexpectedly returns a Workflow Blueprint** → the Executor detected that a
-  planned step needs a data field that doesn't exist anywhere in the target mock
-  dataset. This is the intended "no dead end" behavior for genuinely unsupported
-  domains, not a failure.
+  planned step needs a field that was never part of the synthesized sample data
+  (usually a live-LLM planning step referencing a field it invented rather than one
+  from the Requirement's own `fields`). This is the intended "no dead end" behavior,
+  not a failure.
 - **CORS errors in the browser console** → add your frontend's origin to `CORS_ORIGINS`
   in the backend's `.env`.
 - **`sqlalchemy.exc.OperationalError` / "connection refused" on startup** → PostgreSQL
@@ -264,18 +280,23 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
 
 - Only Anthropic is implemented as a live LLM provider; OpenAI/Gemini are stubbed to
   fall back to deterministic mode until implemented.
-- The Executor's capability-gap detection is field-existence based (does the target
-  dataset have this column at all) — it can't detect subtler unsupported cases where a
-  field exists but the *semantics* don't match what was asked.
+- The deterministic (no API key) fallback synthesizer and Requirement extractor are
+  keyword-cue based - they work for *any* input, but at lower fidelity than the live
+  LLM (e.g. a business problem with no matching cue words gets generic field names
+  like `name`/`value`/`status` instead of domain-specific ones). This is expected, not
+  a bug: it's what keeps the whole pipeline runnable with zero external dependencies.
+- The Executor's capability-gap detection is field-existence based (does the
+  synthesized data have this field at all) — it can't detect subtler unsupported cases
+  where a field exists but the *semantics* don't match what was asked.
 - No authentication — acceptable for a self-serve public demo sandbox, not for handling
   sensitive customer data.
 - Schema changes are applied via `Base.metadata.create_all()` (new tables only, no
   migration history) — fine for this MVP's tables; a schema that evolves further should
   move to Alembic.
-- Mini-app actions (approve, escalate, alert supplier, …) are simulated and persisted
-  to PostgreSQL for audit purposes, but don't trigger any real external system (no
-  actual email/Slack/CRM call) — consistent with the Tool Registry's "no arbitrary
-  outbound calls" safety rule for this MVP.
+- Mini-app actions (Approve / Flag for review) are simulated and persisted to
+  PostgreSQL for audit purposes, but don't trigger any real external system (no actual
+  email/Slack/CRM call) — consistent with the Tool Registry's "no arbitrary outbound
+  calls" safety rule for this MVP.
 
 ## Recommended Next Improvements
 
@@ -285,3 +306,6 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
 - Add a lead-capture step ("Request Full Solution") wired to a CRM, once product
   scope calls for it.
 - Add OpenAI/Gemini `LLMProvider` implementations behind the existing abstraction.
+- Broaden the deterministic (no API key) field-cue and record-label heuristics in
+  `agents/requirement_agent.py` so fallback mode produces more domain-specific sample
+  fields for a wider range of business problems, not just the ones with a keyword hit.

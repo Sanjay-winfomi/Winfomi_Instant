@@ -6,26 +6,20 @@ tool by the exact names in TOOL_REGISTRY; anything else is rejected before it re
 the Critic (see graph/validation.py).
 
 `state` is a plain dict threaded through the whole workflow execution:
-  - state["data"]        current working value (list of records, one record, or a scalar)
+  - state["data"]             current working value (list of records, one record, or a scalar)
+  - state["dataset_records"]  the sample dataset synthesized for this request (see
+                               agents/data_synthesizer.py) - what READ_DATA reads from.
+                               There is no fixed set of mock datasets to choose between;
+                               this is generated fresh per requirement.
   - state["requirement_text"]  original customer text, used as a fallback signal
-  - state["log"]         list of human-readable notes appended by tools (for the demo trace)
+  - state["log"]              list of human-readable notes appended by tools (for the demo trace)
 """
 from __future__ import annotations
 
 import time
 from typing import Any, Callable
 
-from tools.datasets import AVAILABLE_DATASETS, guess_dataset, load_dataset
-
 ToolFn = Callable[[dict, dict], Any]
-
-
-def _resolve_dataset(params: dict, state: dict) -> tuple[str, list[dict]]:
-    name = params.get("dataset")
-    if name in AVAILABLE_DATASETS:
-        return name, list(load_dataset(name))
-    guessed = guess_dataset(state.get("requirement_text", "")) or "tickets"
-    return guessed, list(load_dataset(guessed))
 
 
 def _as_records(data: Any) -> list[dict]:
@@ -43,9 +37,8 @@ def _as_records(data: Any) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def read_data(params: dict, state: dict) -> Any:
-    name, records = _resolve_dataset(params, state)
-    state["log"].append(f"Read {len(records)} record(s) from '{name}'.")
-    state["dataset_name"] = name
+    records = list(state.get("dataset_records", []))
+    state["log"].append(f"Read {len(records)} record(s).")
     return records
 
 
@@ -73,13 +66,11 @@ def write_data(params: dict, state: dict) -> Any:
 # ---------------------------------------------------------------------------
 
 _URGENT_KEYWORDS = ["urgent", "immediately", "unacceptable", "asap", "blocking", "production down", "escalat"]
-_NEGATIVE_KEYWORDS = ["bad", "disappoint", "overheat", "stopped working", "broken", "worse", "outage", "fail"]
-_POSITIVE_KEYWORDS = ["great", "love", "happy", "reliable", "smooth", "solid", "good"]
 
 
 def classify(params: dict, state: dict) -> Any:
     records = _as_records(state.get("data"))
-    field = params.get("field", "body")
+    field = params.get("field", "name")
     category_field = params.get("category_field", "category")
     categories: dict[str, list[str]] = params.get("categories") or {
         "urgent": _URGENT_KEYWORDS,
@@ -87,7 +78,7 @@ def classify(params: dict, state: dict) -> Any:
     }
     out = []
     for r in records:
-        text = f"{r.get('subject', '')} {r.get(field, '')}".lower()
+        text = str(r.get(field, "")).lower()
         assigned = "normal"
         for cat, keywords in categories.items():
             if keywords and any(kw in text for kw in keywords):
@@ -119,67 +110,24 @@ def summarize(params: dict, state: dict) -> Any:
 
 
 def analyze(params: dict, state: dict) -> Any:
-    """Computes a weighted numeric score per record — used for risk scoring, sentiment
-    scoring, etc. Falls back to sensible defaults when the Planner doesn't supply weights."""
+    """Computes a numeric score per record from whatever numeric fields it has.
+
+    Domain-agnostic on purpose: with `weights` supplied, scores a weighted blend of
+    named fields; without weights, sums every numeric field on the record. This is
+    what lets ANALYZE work for a business problem nobody anticipated, since it never
+    assumes specific field names exist."""
     records = _as_records(state.get("data"))
-    method = params.get("method", "risk_score")
     output_field = params.get("output_field", "score")
+    weights: dict[str, float] = params.get("weights") or {}
 
-    if method == "sentiment":
-        out = []
-        for r in records:
-            text = str(r.get("text", "")).lower()
-            pos = sum(1 for kw in _POSITIVE_KEYWORDS if kw in text)
-            neg = sum(1 for kw in _NEGATIVE_KEYWORDS if kw in text)
-            rating = r.get("rating", 3)
-            score = round(rating - neg * 1.5 + pos * 0.5, 2)
-            out.append({**r, output_field: score})
-        state["log"].append(f"Computed sentiment scores for {len(out)} record(s).")
-        return out
-
-    if method == "stock_percentage":
-        out = []
-        for r in records:
-            current = r.get("current_stock", 0)
-            max_stock = r.get("max_stock") or 1
-            pct = round((current / max_stock) * 100, 2)
-            out.append({**r, output_field: pct})
-        state["log"].append(f"Computed stock percentage for {len(out)} record(s).")
-        return out
-
-    if method == "risk_score" and not params.get("weights"):
-        # Purpose-built customer-health formula (not a generic linear blend): recent
-        # support load and low satisfaction dominate, with an urgency bonus when the
-        # renewal window is closing - this gives clean separation on the sample data
-        # instead of one field (e.g. renewal_days' wide range) drowning out the rest.
-        out = []
-        for r in records:
-            tickets = r.get("support_tickets_last_30d", 0)
-            logins = r.get("logins_last_30d", 0)
-            nps = r.get("nps_score", 5)
-            renewal_days = r.get("contract_renewal_days", 999)
-            urgency_bonus = 50 if renewal_days < 30 else 0
-            score = tickets * 5 + (10 - nps) * 4 + urgency_bonus - logins * 1
-            out.append({**r, output_field: round(score, 2)})
-        state["log"].append(f"Computed customer risk scores for {len(out)} record(s).")
-        return out
-
-    # Generic weighted blend, used when the Planner supplies explicit weights.
-    weights: dict[str, float] = params.get("weights") or {
-        "support_tickets_last_30d": 0.35,
-        "logins_last_30d": -0.25,
-        "contract_renewal_days": -0.2,
-        "nps_score": -0.2,
-    }
     out = []
     for r in records:
-        score = 0.0
-        for field, weight in weights.items():
-            value = r.get(field)
-            if isinstance(value, (int, float)):
-                score += value * weight
+        if weights:
+            score = sum(r.get(f, 0) * w for f, w in weights.items() if isinstance(r.get(f), (int, float)))
+        else:
+            score = sum(v for v in r.values() if isinstance(v, (int, float)) and not isinstance(v, bool))
         out.append({**r, output_field: round(score, 2)})
-    state["log"].append(f"Computed '{method}' for {len(out)} record(s) using weighted signals.")
+    state["log"].append(f"Computed '{output_field}' for {len(out)} record(s).")
     return out
 
 
@@ -234,8 +182,9 @@ def check_condition(params: dict, state: dict) -> Any:
 
 
 def compare(params: dict, state: dict) -> Any:
-    """Compares a metric across two groups/periods — used for trend analysis (e.g.
-    declining sentiment for products.json, whose reviews carry a 'period' tag)."""
+    """Compares a metric across two groups/periods — used for trend analysis when the
+    requirement's own fields happen to include a grouping field and a period-like
+    field (e.g. detecting declining sentiment across products over time)."""
     records = _as_records(state.get("data"))
     group_field = params.get("group_field", "product")
     period_field = params.get("period_field", "period")
@@ -354,26 +303,20 @@ def generate_report(params: dict, state: dict) -> Any:
 
 
 def route(params: dict, state: dict) -> Any:
-    """Assigns a team based on keyword overlap with employees.json specialties."""
-    employees = load_dataset("employees")
+    """Tags record(s) with a team name. The team is chosen by the Planner (from the
+    requirement's own action text, e.g. "Escalation team") - there is no fixed
+    employee directory to match against, since the domain isn't known in advance."""
+    team = params.get("team", "Relevant team")
     data = state.get("data")
     records = _as_records(data)
-    by_field = params.get("by", "category")
-
-    def best_team(record: dict) -> dict:
-        text = " ".join(str(record.get(f, "")) for f in (by_field, "subject", "body", "category")).lower()
-        best, best_score = employees[0], -1
-        for emp in employees:
-            score = sum(1 for kw in emp.get("specialty", []) if kw in text)
-            if score > best_score:
-                best, best_score = emp, score
-        return {"team": best["team"], "assigned_to": best["name"]}
 
     if records:
-        routed = [{**r, **best_team(r)} for r in records]
+        routed = [{**r, "team": team} for r in records]
+    elif isinstance(data, dict):
+        routed = {**data, "team": team}
     else:
-        routed = best_team(data if isinstance(data, dict) else {})
-    state["log"].append("Routed record(s) to the best-matching team.")
+        routed = {"team": team}
+    state["log"].append(f"Routed record(s) to '{team}'.")
     return routed
 
 
@@ -399,16 +342,16 @@ TOOL_REGISTRY: dict[str, ToolFn] = {
 }
 
 TOOL_DESCRIPTIONS: dict[str, str] = {
-    "READ_DATA": "Load a mock dataset. params: {dataset: one of tickets|customers|employees|inventory|invoices|products}",
+    "READ_DATA": "Read the sample dataset generated for this requirement. params: {} (no params needed)",
     "SEARCH_DATA": "Filter the current records where a field contains a substring. params: {field, contains}",
     "WRITE_DATA": "Simulated write-back of the current records (no external system in MVP). params: {}",
     "CLASSIFY": "Assign each record a category using keyword rules. params: {field, category_field, categories: {name: [keywords]}}",
     "EXTRACT": "Keep only the given fields on each record. params: {fields: [list of field names]}",
     "SUMMARIZE": "Add a short 'summary' of a text field to each record. params: {field}",
-    "ANALYZE": "Compute a numeric score per record. params: {method: risk_score|sentiment|stock_percentage, output_field, weights}",
+    "ANALYZE": "Compute a numeric score per record from its numeric fields. params: {output_field, weights: {field: weight}} (weights optional - defaults to summing all numeric fields)",
     "GENERATE": "Fill a text template with the current data. params: {template}",
     "CHECK_CONDITION": "Split current records into matched/unmatched by a field/operator/value. params: {field, operator: <|<=|>|>=|==|!=|contains, value}",
-    "COMPARE": "Compare a metric between two periods per group, flags declining groups. params: {group_field, period_field, metric_field, baseline, current}",
+    "COMPARE": "Compare a metric between two groups/periods (only useful if the requirement's fields include a grouping + period field), flags declining groups. params: {group_field, period_field, metric_field, baseline, current}",
     "CALCULATE": "Compute count/average/percentage over current records. params: {operation: count|average|percentage, field}",
     "MAKE_DECISION": "Choose a branch label based on the previous CHECK_CONDITION result. params: {true_branch, false_branch}",
     "SEND_EMAIL": "Simulated email send. params: {to, subject, body}",
@@ -416,7 +359,7 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
     "CREATE_TICKET": "Simulated ticket creation. params: {subject, priority}",
     "UPDATE_RECORD": "Simulated in-memory update of current records. params: {updates: {field: value}}",
     "GENERATE_REPORT": "Compile the final report from accumulated state. params: {title}",
-    "ROUTE": "Assign the best-matching internal team from employees.json. params: {by}",
+    "ROUTE": "Tag record(s) with a team name. params: {team: a short team name string, e.g. 'Escalation team'}",
 }
 
 

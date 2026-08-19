@@ -1,8 +1,0 @@
-[
-  {"invoice_number": "INV-1001", "vendor": "Acme Supplies", "amount": 1250.00, "vendor_known": true, "duplicate": false},
-  {"invoice_number": "INV-1002", "vendor": "Globex Logistics", "amount": 48250.00, "vendor_known": true, "duplicate": false},
-  {"invoice_number": "INV-1003", "vendor": "Quick Cash Traders LLC", "amount": 9800.00, "vendor_known": false, "duplicate": false},
-  {"invoice_number": "INV-1004", "vendor": "Acme Supplies", "amount": 1250.00, "vendor_known": true, "duplicate": true},
-  {"invoice_number": "INV-1005", "vendor": "BrightPath Consulting", "amount": 3200.00, "vendor_known": true, "duplicate": false},
-  {"invoice_number": "INV-1006", "vendor": "Offshore Trading Co", "amount": 62000.00, "vendor_known": false, "duplicate": false}
-]

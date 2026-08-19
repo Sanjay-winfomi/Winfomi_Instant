@@ -1,8 +1,0 @@
-[
-  {"employee_id": "E-01", "name": "Support Team - Tier 1", "team": "Support", "specialty": ["login", "account", "general", "password"], "capacity": 5},
-  {"employee_id": "E-02", "name": "Billing Team", "team": "Billing", "specialty": ["invoice", "billing", "refund", "charge", "payment"], "capacity": 3},
-  {"employee_id": "E-03", "name": "Engineering On-call", "team": "Engineering", "specialty": ["crash", "sync", "bug", "outage", "production"], "capacity": 2},
-  {"employee_id": "E-04", "name": "Product Team", "team": "Product", "specialty": ["feature request", "feedback"], "capacity": 4},
-  {"employee_id": "E-05", "name": "Escalation Team", "team": "Escalations", "specialty": ["urgent", "escalation", "enterprise", "unacceptable"], "capacity": 2},
-  {"employee_id": "E-06", "name": "Sales Team", "team": "Sales", "specialty": ["at-risk", "renewal", "retention", "churn"], "capacity": 4}
-]
