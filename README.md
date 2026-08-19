@@ -45,7 +45,7 @@ against real mock data, and interact with the result — all in seconds.
 ## Architecture
 
 ```
-frontend/ (React + Vite + TS)
+frontend/ (Next.js + React + TS, App Router)
   Landing screen → Processing animation → Result screen
       │ workflow diagram (React Flow), Critic score, execution trace / blueprint
       ▼
@@ -78,9 +78,10 @@ build_blueprint)`. See `backend/graph/orchestrator.py`.
 
 ## Technology Stack
 
-- **Frontend:** React 19 + Vite + TypeScript, React Flow for the workflow diagram. No
-  extra state library — three-stage local state (`landing | processing | result`) is
-  all the flow needs.
+- **Frontend:** Next.js 16 (App Router) + React 19 + TypeScript, React Flow for the
+  workflow diagram. The whole app is a single client component (`"use client"` on
+  `src/app/page.tsx`) - three-stage local state (`landing | processing | result`) is
+  all the flow needs; no server-side data fetching or extra state library.
 - **Backend:** FastAPI + Pydantic v2 for request/response/schema validation.
 - **Agent framework:** LangGraph (`StateGraph`) for the 4-agent orchestration and the
   Critic retry loop.
@@ -107,6 +108,8 @@ backend/
   tests/             unit + integration + end-to-end fixture tests
   main.py            FastAPI app entrypoint (creates DB tables on startup)
 frontend/
+  src/app/           layout.tsx (root layout + globals.css), page.tsx (the whole app,
+                     a single "use client" component: landing/processing/result state)
   src/components/    LandingScreen, ProcessingScreen, ResultScreen, WorkflowDiagram,
                      CriticScoreCard, ExecutionTrace, BlueprintView, MiniApp
   src/services/api.ts  typed fetch client
@@ -154,14 +157,15 @@ entirely in deterministic fallback mode).
 | `LLM_MAX_TOKENS` | No | Defaults to `1500` |
 | `CRITIC_APPROVAL_THRESHOLD` | No | Defaults to `8.0` |
 | `MAX_PLANNER_RETRIES` | No | Defaults to `2` |
-| `CORS_ORIGINS` | No | Defaults to `http://localhost:5173` |
+| `CORS_ORIGINS` | No | Defaults to `http://localhost:3000` (Next.js's default dev port) |
 | `DATABASE_URL` | No | Defaults to `postgresql+psycopg2://postgres:postgres@localhost:5432/agent_sandbox` — update the user/password/host/port to match your PostgreSQL setup |
 
-For the frontend, copy `frontend/.env.example` to `frontend/.env`:
+For the frontend, copy `frontend/.env.example` to `frontend/.env.local` (Next.js's
+convention for local overrides - `.env.example` itself is never read):
 
 | Variable | Purpose |
 |---|---|
-| `VITE_API_BASE_URL` | Defaults to `http://localhost:8000` |
+| `NEXT_PUBLIC_API_BASE_URL` | Defaults to `http://localhost:8000`. Must be prefixed `NEXT_PUBLIC_` to be readable in the browser - Next.js inlines it at build time |
 
 `SLACK_TOKEN`, `EMAIL_SERVICE_API_KEY`, `CRM_API_KEY` are listed in
 `.env.example` as stretch goals only — nothing in the MVP reads them.
@@ -178,7 +182,7 @@ cd frontend
 npm run dev
 ```
 
-Open http://localhost:5173. With no `ANTHROPIC_API_KEY` set, every demo runs in **Demo
+Open http://localhost:3000. With no `ANTHROPIC_API_KEY` set, every demo runs in **Demo
 fallback mode** (shown as a badge on the result screen) — this is expected and fully
 functional, not an error state.
 
@@ -232,14 +236,15 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
   `uvicorn main:app --host 0.0.0.0 --port $PORT`. Set `ANTHROPIC_API_KEY`,
   `CORS_ORIGINS` (your deployed frontend origin), and `DATABASE_URL` (pointing at a
   managed PostgreSQL instance) as environment variables.
-- **Frontend:** `npm run build` produces a static `frontend/dist/` bundle deployable to
-  Vercel/Netlify/any static host. Set `VITE_API_BASE_URL` to the deployed backend URL at
-  build time.
+- **Frontend:** `npm run build && npm run start` runs it as a Node server (the default -
+  deploys cleanly to Vercel, or any Node host). Set `NEXT_PUBLIC_API_BASE_URL` to the
+  deployed backend URL before building, since it's inlined into the client bundle at
+  build time, not read at runtime.
 
 ## Troubleshooting
 
 - **"Could not reach the AI workflow service"** on the landing page → the backend isn't
-  running or `VITE_API_BASE_URL` doesn't match its address/port.
+  running or `NEXT_PUBLIC_API_BASE_URL` doesn't match its address/port.
 - **Every result says "Demo fallback mode"** → this is expected with no
   `ANTHROPIC_API_KEY` set. It's a fully functional deterministic mode, not a bug.
 - **A request unexpectedly returns a Workflow Blueprint** → the Executor detected that a

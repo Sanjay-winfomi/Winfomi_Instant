@@ -1,10 +1,11 @@
+"use client";
+
 import { useCallback, useRef, useState } from "react";
-import "./App.css";
-import LandingScreen from "./components/LandingScreen";
-import ProcessingScreen from "./components/ProcessingScreen";
-import ResultScreen from "./components/ResultScreen";
-import { ApiError, createDemo } from "./services/api";
-import type { DemoResult } from "./types/api";
+import LandingScreen from "@/components/LandingScreen";
+import ProcessingScreen from "@/components/ProcessingScreen";
+import ResultScreen from "@/components/ResultScreen";
+import { ApiError, createDemo } from "@/services/api";
+import type { DemoResult } from "@/types/api";
 
 type Stage = "landing" | "processing" | "result";
 
@@ -14,7 +15,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function App() {
+export default function Home() {
   const [stage, setStage] = useState<Stage>("landing");
   const [result, setResult] = useState<DemoResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -69,5 +70,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

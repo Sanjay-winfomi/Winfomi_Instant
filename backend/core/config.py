@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     critic_approval_threshold: float = 8.0
     max_planner_retries: int = 2
 
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:3000"
 
     database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/agent_sandbox"
 
