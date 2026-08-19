@@ -62,6 +62,11 @@
   opacity: 0.55;
 }
 
-.react-flow__handle {
+/* Scoped to this component's own canvas - the AI-generated diagram is read-only,
+   so its connection handles serve no purpose and would just look like stray dots.
+   Do NOT hide .react-flow__handle globally: React Flow's CSS classes aren't scoped
+   by Next.js, so an unscoped rule here would also hide handles in the flowchart
+   builder, where they're the only way to see where to drag a connector from. */
+.workflow-diagram .react-flow__handle {
   opacity: 0;
 }

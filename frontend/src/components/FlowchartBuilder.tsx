@@ -5,6 +5,7 @@ import ReactFlow, {
   addEdge,
   Background,
   Handle,
+  MarkerType,
   Position,
   ReactFlowProvider,
   useEdgesState,
@@ -100,7 +101,10 @@ function Canvas({ onGenerate }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const onConnect = useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge({ ...connection, animated: false }, eds)),
+    (connection: Connection) =>
+      setEdges((eds) =>
+        addEdge({ ...connection, animated: false, markerEnd: { type: MarkerType.ArrowClosed, color: "#22d3ee" } }, eds)
+      ),
     [setEdges]
   );
 
