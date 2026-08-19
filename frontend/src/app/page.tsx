@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import LandingScreen from "@/components/LandingScreen";
 import ProcessingScreen from "@/components/ProcessingScreen";
 import ResultScreen from "@/components/ResultScreen";
+import TopBar from "@/components/TopBar";
 import { ApiError, createDemo, createDemoFromFile } from "@/services/api";
 import type { DemoResult } from "@/types/api";
 
@@ -73,16 +74,9 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <span className="brand-mark">◈</span>
-          <span>Instant AI Agent Sandbox</span>
-        </div>
-        <div className="brand-tagline">Describe it. Watch it build itself. Try it live.</div>
-      </header>
-
-      <main className="app-main">
+    <>
+      <TopBar />
+      <div className="app-main-content">
         {stage === "landing" && (
           <LandingScreen
             onSubmit={runDemo}
@@ -93,7 +87,7 @@ export default function Home() {
         )}
         {stage === "processing" && <ProcessingScreen />}
         {stage === "result" && result && <ResultScreen result={result} onReset={handleReset} />}
-      </main>
-    </div>
+      </div>
+    </>
   );
 }

@@ -1,0 +1,94 @@
+.hero-illustration {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  height: 260px;
+  margin: 0 auto;
+}
+
+.hero-glow {
+  position: absolute;
+  inset: 20% 10%;
+  background: radial-gradient(circle, rgba(63, 191, 95, 0.28), transparent 70%);
+  filter: blur(20px);
+  z-index: 0;
+}
+
+.hero-pedestal {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: 220px;
+  height: 40px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: radial-gradient(ellipse at center, rgba(47, 168, 78, 0.18), rgba(47, 168, 78, 0) 72%);
+  z-index: 0;
+}
+
+.hero-panel {
+  position: absolute;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(63, 191, 95, 0.55), rgba(47, 168, 78, 0.28));
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 20px 40px rgba(47, 168, 78, 0.18);
+  backdrop-filter: blur(2px);
+  animation: floatY 5s ease-in-out infinite;
+}
+
+.hero-panel--back {
+  width: 150px;
+  height: 100px;
+  left: 30px;
+  top: 60px;
+  transform: rotate(-14deg);
+  opacity: 0.55;
+  animation-delay: 0.4s;
+}
+
+.hero-panel--mid {
+  width: 170px;
+  height: 115px;
+  right: 20px;
+  top: 40px;
+  transform: rotate(10deg);
+  opacity: 0.8;
+  animation-delay: 0.15s;
+}
+
+.hero-panel--front {
+  width: 160px;
+  height: 130px;
+  left: 50%;
+  top: 70px;
+  transform: translateX(-50%) rotate(-3deg);
+  background: linear-gradient(135deg, rgba(63, 191, 95, 0.85), rgba(47, 168, 78, 0.55));
+  box-shadow: 0 26px 50px rgba(47, 168, 78, 0.28);
+}
+
+.hero-sparkle {
+  position: absolute;
+  color: var(--accent-2);
+  font-size: 1.1rem;
+  animation: pulse 2.6s ease-in-out infinite;
+}
+
+.hero-sparkle--1 {
+  top: 30px;
+  right: 60px;
+  font-size: 1.4rem;
+  animation-delay: 0.2s;
+}
+
+.hero-sparkle--2 {
+  top: 100px;
+  left: 20px;
+  animation-delay: 1s;
+}
+
+.hero-sparkle--3 {
+  bottom: 70px;
+  right: 30px;
+  font-size: 0.9rem;
+  animation-delay: 1.6s;
+}

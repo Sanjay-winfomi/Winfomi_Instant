@@ -49,8 +49,8 @@
   font-size: 0.75rem;
   padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(124, 92, 255, 0.12);
-  color: var(--accent-1);
+  background: var(--chip-purple-bg);
+  color: var(--chip-purple);
   text-transform: capitalize;
 }
 

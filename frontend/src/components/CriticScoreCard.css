@@ -3,6 +3,7 @@
   border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
   padding: 22px;
+  box-shadow: var(--shadow-card);
 }
 
 .critic-card-header {
@@ -38,12 +39,12 @@
 }
 
 .critic-badge--approved {
-  background: rgba(52, 211, 153, 0.15);
+  background: var(--chip-green-bg);
   color: var(--success);
 }
 
 .critic-badge--rejected {
-  background: rgba(248, 113, 113, 0.15);
+  background: #fee2e2;
   color: var(--danger);
 }
 
@@ -68,7 +69,7 @@
 .critic-bar-track {
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-alt);
   overflow: hidden;
 }
 
@@ -107,12 +108,12 @@
   font-size: 0.75rem;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(248, 113, 113, 0.12);
+  background: #fee2e2;
   color: var(--danger);
 }
 
 .critic-history-pill.is-approved {
-  background: rgba(52, 211, 153, 0.15);
+  background: var(--chip-green-bg);
   color: var(--success);
 }
 

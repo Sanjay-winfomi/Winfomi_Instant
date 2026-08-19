@@ -13,6 +13,7 @@
   padding: 40px 44px;
   text-align: center;
   min-width: min(420px, 90vw);
+  box-shadow: var(--shadow-card);
 }
 
 .processing-spinner {
@@ -20,7 +21,7 @@
   height: 44px;
   margin: 0 auto 20px;
   border-radius: 50%;
-  border: 3px solid rgba(124, 92, 255, 0.2);
+  border: 3px solid var(--chip-green-bg);
   border-top-color: var(--accent-1);
   animation: spin 0.9s linear infinite;
 }
@@ -70,5 +71,5 @@
 }
 
 .processing-step--pending {
-  color: #4b5164;
+  color: #c4c9d4;
 }

@@ -2,7 +2,7 @@
   width: 100%;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.015);
+  background: var(--surface-alt);
   border: 1px solid var(--card-border);
 }
 
@@ -11,10 +11,11 @@
   padding: 10px 16px;
   border-radius: 10px;
   border: 1.5px solid var(--card-border);
-  background: #161b28;
+  background: var(--surface);
   font-size: 0.82rem;
   text-align: center;
   color: var(--text-primary);
+  box-shadow: var(--shadow-card);
 }
 
 .flow-node-label {
@@ -30,32 +31,32 @@
 }
 
 .flow-node--data {
-  border-color: rgba(34, 211, 238, 0.5);
+  border-color: var(--chip-teal);
 }
 
 .flow-node--ai {
-  border-color: rgba(124, 92, 255, 0.55);
+  border-color: var(--chip-purple);
 }
 
 .flow-node--logic {
-  border-color: rgba(251, 191, 36, 0.5);
+  border-color: var(--chip-amber);
 }
 
 .flow-node--decision {
-  border-color: rgba(251, 191, 36, 0.75);
+  border-color: var(--chip-amber);
   border-radius: 999px;
 }
 
 .flow-node--action {
-  border-color: rgba(52, 211, 153, 0.5);
+  border-color: var(--accent-1);
 }
 
 .flow-node--success {
-  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.35);
+  box-shadow: 0 0 0 2px rgba(47, 168, 78, 0.3);
 }
 
 .flow-node--failed {
-  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.4);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.35);
 }
 
 .flow-node--blocked {

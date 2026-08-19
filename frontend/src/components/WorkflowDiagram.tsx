@@ -101,7 +101,7 @@ export default function WorkflowDiagram({ steps, stepResults }: Props) {
         zoomOnScroll={false}
         panOnDrag={false}
       >
-        <Background gap={18} color="rgba(255,255,255,0.06)" />
+        <Background gap={18} color="rgba(17,24,39,0.08)" />
       </ReactFlow>
     </div>
   );

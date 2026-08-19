@@ -103,7 +103,7 @@ function Canvas({ onGenerate }: Props) {
   const onConnect = useCallback(
     (connection: Connection) =>
       setEdges((eds) =>
-        addEdge({ ...connection, animated: false, markerEnd: { type: MarkerType.ArrowClosed, color: "#22d3ee" } }, eds)
+        addEdge({ ...connection, animated: false, markerEnd: { type: MarkerType.ArrowClosed, color: "#2fa84e" } }, eds)
       ),
     [setEdges]
   );
@@ -181,7 +181,7 @@ function Canvas({ onGenerate }: Props) {
           fitView
           proOptions={{ hideAttribution: true }}
         >
-          <Background gap={18} color="rgba(255,255,255,0.06)" />
+          <Background gap={18} color="rgba(17,24,39,0.08)" />
         </ReactFlow>
       </div>
     </div>

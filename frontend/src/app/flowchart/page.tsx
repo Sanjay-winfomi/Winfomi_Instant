@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import FlowchartBuilder from "@/components/FlowchartBuilder";
 import ProcessingScreen from "@/components/ProcessingScreen";
 import ResultScreen from "@/components/ResultScreen";
+import TopBar from "@/components/TopBar";
 import { ApiError, createDemo } from "@/services/api";
 import type { DemoResult } from "@/types/api";
 
@@ -50,18 +51,15 @@ export default function FlowchartPage() {
   }, []);
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <span className="brand-mark">◈</span>
-          <span>Instant AI Agent Sandbox</span>
-        </div>
-        <Link href="/" className="brand-tagline flowchart-back-link">
-          ← Back to describing it in text
-        </Link>
-      </header>
-
-      <main className="app-main">
+    <>
+      <TopBar
+        left={
+          <Link href="/" className="flowchart-back-link">
+            ← Back to describing it in text
+          </Link>
+        }
+      />
+      <div className="app-main-content">
         {stage === "canvas" && (
           <>
             <h2 className="flowchart-title">Design your workflow manually</h2>
@@ -75,7 +73,7 @@ export default function FlowchartPage() {
         )}
         {stage === "processing" && <ProcessingScreen />}
         {stage === "result" && result && <ResultScreen result={result} onReset={handleReset} />}
-      </main>
-    </div>
+      </div>
+    </>
   );
 }

@@ -1,19 +1,30 @@
 :root {
-  --bg: #0a0d16;
-  --bg-elevated: #11151f;
-  --card: rgba(255, 255, 255, 0.035);
-  --card-border: rgba(255, 255, 255, 0.08);
-  --text-primary: #e8eaf0;
-  --text-muted: #8b93a7;
-  --accent-1: #7c5cff;
-  --accent-2: #22d3ee;
-  --success: #34d399;
-  --danger: #f87171;
-  --warning: #fbbf24;
-  --radius-lg: 18px;
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-alt: #fafafa;
+  --card: #ffffff;
+  --card-border: rgba(17, 24, 39, 0.07);
+  --text-primary: #111827;
+  --text-muted: #6b7280;
+  --accent-1: #2fa84e;
+  --accent-2: #3fbf5f;
+  --accent-contrast: #ffffff;
+  --chip-purple: #8b6cf1;
+  --chip-purple-bg: #efeafd;
+  --chip-amber: #e08a1f;
+  --chip-amber-bg: #fdf1de;
+  --chip-teal: #1a9c9c;
+  --chip-teal-bg: #e2f6f5;
+  --chip-green-bg: #e6f8ec;
+  --success: #2fa84e;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --radius-lg: 22px;
   --radius-md: 12px;
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.04), 0 10px 30px rgba(17, 24, 39, 0.06);
+  --shadow-card-hover: 0 4px 10px rgba(17, 24, 39, 0.06), 0 16px 36px rgba(17, 24, 39, 0.09);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 * {
@@ -31,8 +42,7 @@ html {
 }
 
 body {
-  background: radial-gradient(1200px 600px at 15% -10%, rgba(124, 92, 255, 0.18), transparent),
-    radial-gradient(1000px 500px at 100% 0%, rgba(34, 211, 238, 0.12), transparent), var(--bg);
+  background: var(--bg);
   color: var(--text-primary);
 }
 
@@ -41,7 +51,7 @@ button {
 }
 
 ::selection {
-  background: rgba(124, 92, 255, 0.35);
+  background: rgba(63, 191, 95, 0.22);
 }
 
 a {
@@ -49,7 +59,7 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent-2);
+  outline: 2px solid var(--accent-1);
   outline-offset: 2px;
 }
 
@@ -87,77 +97,105 @@ a {
   }
 }
 
+@keyframes floatY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ---------- App shell: persistent sidebar + main panel ---------- */
+
 .app-shell {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
-}
-
-.app-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 22px clamp(20px, 5vw, 56px);
-  border-bottom: 1px solid var(--card-border);
-  flex-wrap: wrap;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
-}
-
-.brand-mark {
-  color: var(--accent-2);
-  font-size: 1.3rem;
-}
-
-.brand-tagline {
-  color: var(--text-muted);
-  font-size: 0.9rem;
 }
 
 .app-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: clamp(20px, 5vw, 56px);
+  min-width: 0;
+  background: var(--surface-alt);
 }
 
-@media (max-width: 640px) {
-  .app-header {
+.app-main-content {
+  flex: 1;
+  padding: clamp(20px, 4vw, 44px);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
+  color: var(--accent-contrast);
+  border: none;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 13px 26px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(47, 168, 78, 0.28);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(47, 168, 78, 0.34);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 10px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.btn-secondary:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+
+.error-text {
+  color: var(--danger);
+}
+
+@media (max-width: 900px) {
+  .app-shell {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
   }
-}
-
-.flowchart-back-link {
-  text-decoration: none;
-}
-
-.flowchart-back-link:hover {
-  color: var(--accent-2);
 }
 
 .flowchart-title {
   margin: 0 0 6px;
-  font-size: 1.3rem;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .flowchart-subtitle {
   margin: 0 0 18px;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   max-width: 720px;
   line-height: 1.5;
 }
 
-.app-main .flowchart-error {
+.app-main-content .flowchart-error {
   margin: 0 0 14px;
 }

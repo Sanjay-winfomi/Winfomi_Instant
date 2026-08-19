@@ -31,28 +31,13 @@
 }
 
 .mode-badge--live {
-  background: rgba(52, 211, 153, 0.15);
+  background: var(--chip-green-bg);
   color: var(--success);
 }
 
 .mode-badge--fallback {
-  background: rgba(34, 211, 238, 0.14);
-  color: var(--accent-2);
-}
-
-.btn-secondary {
-  background: none;
-  border: 1px solid var(--card-border);
-  color: var(--text-primary);
-  padding: 10px 20px;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 0.88rem;
-  white-space: nowrap;
-}
-
-.btn-secondary:hover {
-  border-color: var(--accent-1);
+  background: var(--chip-teal-bg);
+  color: var(--chip-teal);
 }
 
 .result-grid {
@@ -74,11 +59,12 @@
   border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  box-shadow: var(--shadow-card);
 }
 
 .panel--muted {
-  background: rgba(248, 113, 113, 0.04);
-  border-color: rgba(248, 113, 113, 0.25);
+  background: #fef2f2;
+  border-color: rgba(220, 38, 38, 0.2);
 }
 
 .panel-title {
