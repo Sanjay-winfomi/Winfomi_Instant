@@ -59,6 +59,28 @@ export interface RejectedStep {
   reason: string;
 }
 
+export interface RecordSummary {
+  id: string;
+  label: string;
+}
+
+export interface ActionOption {
+  action: string;
+  label: string;
+}
+
+export interface MiniAppInfo {
+  dataset: string | null;
+  records: RecordSummary[];
+  actions: ActionOption[];
+}
+
+export interface ActionLogEntry {
+  record_id: string;
+  action: string;
+  created_at: string;
+}
+
 export interface DemoResult {
   session_id: string;
   outcome: "executed" | "blueprint" | "error";
@@ -71,4 +93,5 @@ export interface DemoResult {
   rejected_steps: RejectedStep[];
   mode: "live" | "fallback";
   error?: string | null;
+  mini_app: MiniAppInfo | null;
 }

@@ -2,6 +2,7 @@ import type { DemoResult } from "../types/api";
 import BlueprintView from "./BlueprintView";
 import CriticScoreCard from "./CriticScoreCard";
 import ExecutionTrace from "./ExecutionTrace";
+import MiniApp from "./MiniApp";
 import "./ResultScreen.css";
 import WorkflowDiagram from "./WorkflowDiagram";
 
@@ -48,9 +49,16 @@ export default function ResultScreen({ result, onReset }: Props) {
             <WorkflowDiagram steps={displaySteps} stepResults={result.execution?.step_results} />
           </div>
 
+          {result.outcome === "executed" && result.mini_app && (
+            <div className="panel">
+              <span className="panel-title">Try it live</span>
+              <MiniApp sessionId={result.session_id} miniApp={result.mini_app} />
+            </div>
+          )}
+
           {result.outcome === "executed" && result.execution && (
             <div className="panel">
-              <span className="panel-title">Execution trace</span>
+              <span className="panel-title">Execution trace (full batch run)</span>
               <ExecutionTrace steps={result.execution.step_results} />
             </div>
           )}

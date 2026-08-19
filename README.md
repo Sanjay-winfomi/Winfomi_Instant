@@ -36,6 +36,11 @@ against real mock data, and interact with the result — all in seconds.
 - **Real persistence** — every demo session (requirement, workflow, critic scores,
   execution trace, blueprint) is written to PostgreSQL, so a session survives a backend
   restart and can be inspected directly in pgAdmin4.
+- **"Try it live" mini-app** — once a workflow executes, pick any real record from the
+  dataset it used (a specific ticket, customer, invoice, product, or inventory item)
+  and re-run the same approved workflow against just that one record, then take a
+  domain-appropriate action (approve, escalate, alert supplier, …) — a genuine action,
+  persisted to PostgreSQL, not a decorative button.
 
 ## Architecture
 
@@ -61,6 +66,10 @@ backend/ (FastAPI)
               │
               ▼ (every outcome)
    api/store.py ──▶ PostgreSQL (demo_sessions table)
+
+  "Try it live" (frontend/src/components/MiniApp.tsx):
+   pick record ──▶ POST /records/{id}/run ──▶ Executor (single-record re-run)
+   take action ──▶ POST /records/{id}/actions ──▶ PostgreSQL (session_actions table)
 ```
 
 LangGraph models the graph exactly as: `analyze_requirement → plan_workflow →
@@ -99,7 +108,7 @@ backend/
   main.py            FastAPI app entrypoint (creates DB tables on startup)
 frontend/
   src/components/    LandingScreen, ProcessingScreen, ResultScreen, WorkflowDiagram,
-                     CriticScoreCard, ExecutionTrace, BlueprintView
+                     CriticScoreCard, ExecutionTrace, BlueprintView, MiniApp
   src/services/api.ts  typed fetch client
   src/types/api.ts     TypeScript types mirroring the backend Pydantic schemas
 .env.example         all required/optional environment variables
@@ -184,27 +193,32 @@ Requires PostgreSQL to be running and reachable via `DATABASE_URL` — the API t
 exercise the real `demo_sessions` table (via `TestClient` as a context manager, so the
 FastAPI lifespan/`init_db()` runs first).
 
-26 tests covering: Requirement Agent schema output, Planner tool-registry compliance,
+32 tests covering: Requirement Agent schema output, Planner tool-registry compliance,
 Critic scoring determinism, workflow validation (hallucinated tools + step-count limits),
 tool execution, the API endpoints (including 422 on invalid input and 404 on unknown
-sessions), and 5 end-to-end fixtures run through the *same* generic pipeline — including
-the deliberately out-of-scope "employee attendance" case, which proves the engine
-generates a Blueprint for a genuinely novel domain instead of either crashing or being a
-hardcoded demo.
+sessions), the mini-app endpoints (single-record run, valid/invalid action persistence,
+action log), and 5 end-to-end fixtures run through the *same* generic pipeline —
+including the deliberately out-of-scope "employee attendance" case, which proves the
+engine generates a Blueprint for a genuinely novel domain instead of either crashing or
+being a hardcoded demo.
 
 Frontend has no separate test runner configured for the MVP; it was verified with a
 Playwright-driven browser pass through the full user journey (landing → example chip →
 submit → processing animation → executed result with workflow diagram/critic
-score/execution trace → reset → out-of-scope input → Blueprint view), confirming zero
-console errors.
+score/execution trace → reset → out-of-scope input → Blueprint view) and through the
+"try it live" mini-app (pick a record → run → take an action → confirm it's persisted
+in PostgreSQL), confirming zero console errors both times.
 
 ## API Documentation
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/health` | Liveness check |
-| `POST` | `/api/demo` | Body: `{"text": "..."}` (5–2000 chars). Runs the full pipeline synchronously and returns a `DemoResult` |
+| `POST` | `/api/demo` | Body: `{"text": "..."}` (5–2000 chars). Runs the full pipeline synchronously and returns a `DemoResult` (includes `mini_app` when `outcome` is `"executed"`) |
 | `GET` | `/api/demo/{session_id}` | Re-fetch a previously generated result |
+| `POST` | `/api/demo/{session_id}/records/{record_id}/run` | Re-runs the session's approved workflow against just this one record; returns an `ExecutionResult` |
+| `POST` | `/api/demo/{session_id}/records/{record_id}/actions` | Body: `{"action": "..."}` — must be one of the actions listed in that session's `mini_app.actions`. Persists the action and returns an `ActionLogEntry` |
+| `GET` | `/api/demo/{session_id}/actions` | Lists every action taken on this session, most recent first |
 
 Interactive OpenAPI docs are available at `http://localhost:8000/docs` once the backend
 is running.
@@ -251,8 +265,12 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
 - No authentication — acceptable for a self-serve public demo sandbox, not for handling
   sensitive customer data.
 - Schema changes are applied via `Base.metadata.create_all()` (new tables only, no
-  migration history) — fine for this MVP's single table; a schema that evolves further
-  should move to Alembic.
+  migration history) — fine for this MVP's tables; a schema that evolves further should
+  move to Alembic.
+- Mini-app actions (approve, escalate, alert supplier, …) are simulated and persisted
+  to PostgreSQL for audit purposes, but don't trigger any real external system (no
+  actual email/Slack/CRM call) — consistent with the Tool Registry's "no arbitrary
+  outbound calls" safety rule for this MVP.
 
 ## Recommended Next Improvements
 

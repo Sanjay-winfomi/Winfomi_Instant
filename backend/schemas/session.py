@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from schemas.critic import CriticResult
 from schemas.execution import ExecutionResult, WorkflowBlueprint
+from schemas.miniapp import MiniAppInfo
 from schemas.requirement import Requirement
 from schemas.workflow import Workflow
 
@@ -24,3 +25,4 @@ class DemoResult(BaseModel):
     rejected_steps: list[dict[str, Any]] = Field(default_factory=list)
     mode: str = "fallback"  # live | fallback
     error: str | None = None
+    mini_app: MiniAppInfo | None = None

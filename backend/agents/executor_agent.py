@@ -17,7 +17,7 @@ from typing import Any
 
 from schemas.execution import ExecutionResult, StepResult
 from schemas.workflow import Workflow, WorkflowStep
-from tools.datasets import load_dataset
+from tools.datasets import ID_FIELDS
 from tools.registry import run_tool
 
 FIELD_REFERENCING_TOOLS = {"CHECK_CONDITION", "COMPARE", "CALCULATE"}
@@ -55,7 +55,13 @@ def _json_safe(value: Any) -> Any:
     return str(value)
 
 
-def run_workflow(workflow: Workflow, requirement_text: str) -> ExecutionResult:
+def run_workflow(
+    workflow: Workflow, requirement_text: str, record_id: str | None = None
+) -> ExecutionResult:
+    """If `record_id` is given, the workflow runs against just that one record from
+    the dataset (matched on that dataset's natural id field) instead of the whole
+    dataset - this is what powers the "try it live" single-record run in the mini-app,
+    and it's a real re-execution of the same approved workflow, not a lookup."""
     state: dict[str, Any] = {"data": None, "requirement_text": requirement_text, "log": []}
     step_results: list[StepResult] = []
     raw_records: list[dict] | None = None
@@ -88,6 +94,10 @@ def run_workflow(workflow: Workflow, requirement_text: str) -> ExecutionResult:
         if step.tool == "READ_DATA" and raw_records is None:
             raw_records = output if isinstance(output, list) else [output]
             dataset_name = state.get("dataset_name", dataset_name)
+            if record_id is not None:
+                id_field = ID_FIELDS.get(dataset_name or "")
+                if id_field:
+                    output = [r for r in raw_records if str(r.get(id_field)) == str(record_id)]
 
         known_dynamic_fields.update(_introduced_fields_for(step))
 

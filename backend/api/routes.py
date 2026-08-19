@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
+from agents.executor_agent import UnsupportedCapabilityError, run_workflow
 from api.store import get as get_session
+from api.store import get_dataset, list_actions, save_action, save_record_run
 from api.store import save as save_session
 from core.logging import get_logger
 from graph.orchestrator import run_pipeline
+from schemas.execution import ExecutionResult
+from schemas.miniapp import ActionLogEntry, RecordActionRequest
 from schemas.session import DemoRequest, DemoResult
+from tools.datasets import get_actions as get_dataset_actions
+from tools.mini_app import build_mini_app_info
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api")
@@ -31,17 +38,28 @@ def create_demo(request: DemoRequest) -> DemoResult:
         return result
 
     mode = state.get("planner_mode") or state.get("requirement_mode") or "fallback"
+    outcome = state.get("outcome", "error")
+    workflow = state.get("workflow")
+
+    dataset = None
+    if workflow:
+        for step in workflow.steps:
+            if step.tool == "READ_DATA":
+                dataset = step.params.get("dataset")
+                break
+
     result = DemoResult(
         session_id=session_id,
-        outcome=state.get("outcome", "error"),
+        outcome=outcome,
         requirement=state.get("requirement"),
-        workflow=state.get("workflow"),
+        workflow=workflow,
         critic=state.get("critic"),
         critic_history=state.get("critic_history", []),
         execution=state.get("execution"),
         blueprint=state.get("blueprint"),
         rejected_steps=state.get("rejected_steps", []),
         mode=mode,
+        mini_app=build_mini_app_info(dataset) if outcome == "executed" else None,
     )
     save_session(result)
     return result
@@ -53,3 +71,46 @@ def get_demo(session_id: str) -> DemoResult:
     if result is None:
         raise HTTPException(status_code=404, detail="Demo session not found.")
     return result
+
+
+@router.post("/demo/{session_id}/records/{record_id}/run", response_model=ExecutionResult)
+def run_record(session_id: str, record_id: str) -> ExecutionResult:
+    """Re-executes the session's already-approved workflow against a single record -
+    a real run of the same deterministic tools, not a canned lookup."""
+    result = get_session(session_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Demo session not found.")
+    if result.outcome != "executed" or result.workflow is None:
+        raise HTTPException(status_code=400, detail="This session has no executable workflow to run.")
+
+    try:
+        execution = run_workflow(result.workflow, result.requirement.goal if result.requirement else "", record_id=record_id)
+    except UnsupportedCapabilityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    save_record_run(session_id, record_id, execution)
+    return execution
+
+
+@router.post("/demo/{session_id}/records/{record_id}/actions", response_model=ActionLogEntry)
+def take_action(session_id: str, record_id: str, request: RecordActionRequest) -> ActionLogEntry:
+    """Persists a simulated action (approve/escalate/alert supplier/...) the customer
+    took on one record - written to PostgreSQL as proof the interaction is real."""
+    result = get_session(session_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Demo session not found.")
+
+    dataset = get_dataset(session_id)
+    allowed = {a["action"] for a in get_dataset_actions(dataset or "")}
+    if request.action not in allowed:
+        raise HTTPException(status_code=422, detail=f"'{request.action}' is not a valid action for this session.")
+
+    save_action(session_id, record_id, request.action)
+    return ActionLogEntry(record_id=record_id, action=request.action, created_at=datetime.now(timezone.utc).isoformat())
+
+
+@router.get("/demo/{session_id}/actions", response_model=list[ActionLogEntry])
+def get_actions_log(session_id: str) -> list[ActionLogEntry]:
+    if get_session(session_id) is None:
+        raise HTTPException(status_code=404, detail="Demo session not found.")
+    return [ActionLogEntry(**a) for a in list_actions(session_id)]

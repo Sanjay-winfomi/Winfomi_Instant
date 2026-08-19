@@ -1,4 +1,4 @@
-import type { DemoResult } from "../types/api";
+import type { ActionLogEntry, DemoResult, ExecutionResult } from "../types/api";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -30,4 +30,25 @@ export async function createDemo(text: string): Promise<DemoResult> {
 export async function getDemo(sessionId: string): Promise<DemoResult> {
   const res = await fetch(`${BASE_URL}/api/demo/${sessionId}`);
   return handle<DemoResult>(res);
+}
+
+export async function runRecord(sessionId: string, recordId: string): Promise<ExecutionResult> {
+  const res = await fetch(`${BASE_URL}/api/demo/${sessionId}/records/${encodeURIComponent(recordId)}/run`, {
+    method: "POST",
+  });
+  return handle<ExecutionResult>(res);
+}
+
+export async function takeAction(sessionId: string, recordId: string, action: string): Promise<ActionLogEntry> {
+  const res = await fetch(`${BASE_URL}/api/demo/${sessionId}/records/${encodeURIComponent(recordId)}/actions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+  return handle<ActionLogEntry>(res);
+}
+
+export async function getActionsLog(sessionId: string): Promise<ActionLogEntry[]> {
+  const res = await fetch(`${BASE_URL}/api/demo/${sessionId}/actions`);
+  return handle<ActionLogEntry[]>(res);
 }
