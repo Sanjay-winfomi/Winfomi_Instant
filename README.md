@@ -48,16 +48,36 @@ real workflow and real sample records too, not a forced fit into the wrong categ
   synthesized sample records and re-run the same approved workflow against just that
   record, then take a generic decision action (Approve / Flag for review) — a genuine
   action, persisted to PostgreSQL, not a decorative button.
+- **Import a document instead of typing** — upload a `.csv`/`.xlsx` and its actual rows
+  become the real dataset the workflow runs against (no synthesis at all); upload a
+  `.docx`/`.pdf`/`.pptx` and its extracted text is treated exactly like a typed problem
+  description. See `backend/services/file_import.py`.
+- **Manual flowchart builder** (`/flowchart`) — drag shapes (Start/End, Process,
+  Decision) onto a canvas, connect them, and write your own step descriptions. This is
+  a free-form diagram, not tied to the Tool Registry - "building the mini web app from
+  it" means serializing your diagram into a plain-English description and running it
+  through the *exact same* 4-agent pipeline as typed text, so no separate execution
+  path exists to keep in sync.
 
 ## Architecture
 
 ```
 frontend/ (Next.js + React + TS, App Router)
-  Landing screen → Processing animation → Result screen
+  Landing screen ──▶ typed text ─────────────────┐
+                  ──▶ file upload (FileUploadCard)│
+  /flowchart ──▶ drag-and-drop canvas ──▶ serialized text ┘
+      ▼
+  Processing animation → Result screen
       │ workflow diagram (React Flow), Critic score, execution trace / blueprint
       ▼
 backend/ (FastAPI)
-  POST /api/demo  ──▶  graph/orchestrator.py (LangGraph)
+  POST /api/demo (typed text or serialized flowchart text)
+  POST /api/demo/upload (file) ──▶ services/file_import.py
+                          │              │
+                          │    tabular (csv/xlsx): real rows bypass synthesis entirely
+                          │    text (docx/pdf/pptx): extracted text used like typed text
+                          ▼
+                  graph/orchestrator.py (LangGraph)
                           │
               ┌───────────┼────────────────────────────┐
               ▼           ▼            ▼                ▼
@@ -101,10 +121,15 @@ build_blueprint)`. See `backend/graph/orchestrator.py`.
   touching any agent code — only `LLM_PROVIDER` and one new subclass.
 - **Data:** no fixed datasets - a small sample dataset is synthesized per request
   (`backend/agents/data_synthesizer.py`) and is what the Executor's tools actually
-  operate on. **PostgreSQL** handles demo-session persistence (including the
-  synthesized records themselves) via SQLAlchemy 2.0 (`backend/database/`), with
-  tables created automatically on startup (`database/init_db.py`). Every DB access
-  goes through `backend/api/store.py`; no other module touches SQLAlchemy directly.
+  operate on, *unless* the customer uploaded a `.csv`/`.xlsx` file, in which case its
+  real rows are used directly. **PostgreSQL** handles demo-session persistence
+  (including the dataset itself, synthesized or uploaded) via SQLAlchemy 2.0
+  (`backend/database/`), with tables created automatically on startup
+  (`database/init_db.py`). Every DB access goes through `backend/api/store.py`; no
+  other module touches SQLAlchemy directly.
+- **File parsing:** `python-docx`, `pypdf`, `openpyxl`, `python-pptx` for
+  `.docx`/`.pdf`/`.xlsx`/`.pptx` respectively; `.csv` uses the standard library's
+  `csv` module. All isolated behind `backend/services/file_import.py`.
 
 ## Project Structure
 
@@ -112,6 +137,7 @@ build_blueprint)`. See `backend/graph/orchestrator.py`.
 backend/
   agents/            the 4 agents + the data synthesizer + the LLM provider abstraction
   tools/             the Tool Registry (18 deterministic tools) + mini-app helpers
+  services/          file_import.py - docx/pdf/xlsx/csv/pptx extraction
   graph/             LangGraph orchestration + the safety/validation layer
   schemas/           Pydantic contracts shared by every agent and the API
   database/          SQLAlchemy engine/session, ORM model, table creation
@@ -121,8 +147,10 @@ backend/
 frontend/
   src/app/           layout.tsx (root layout + globals.css), page.tsx (the whole app,
                      a single "use client" component: landing/processing/result state)
+  src/app/flowchart/ page.tsx - the manual flowchart builder route
   src/components/    LandingScreen, ProcessingScreen, ResultScreen, WorkflowDiagram,
-                     CriticScoreCard, ExecutionTrace, BlueprintView, MiniApp
+                     CriticScoreCard, ExecutionTrace, BlueprintView, MiniApp,
+                     FileUploadCard, FlowchartBuilder
   src/services/api.ts  typed fetch client
   src/types/api.ts     TypeScript types mirroring the backend Pydantic schemas
 .env.example         all required/optional environment variables
@@ -208,7 +236,7 @@ Requires PostgreSQL to be running and reachable via `DATABASE_URL` — the API t
 exercise the real `demo_sessions` table (via `TestClient` as a context manager, so the
 FastAPI lifespan/`init_db()` runs first).
 
-37 tests covering: Requirement Agent schema output (including on a genuinely novel
+47 tests covering: Requirement Agent schema output (including on a genuinely novel
 domain with no analogue in any hand-built dataset), Planner tool-registry compliance,
 the data synthesizer (generates every requested field plus a stable `id`), Critic
 scoring determinism, workflow validation (hallucinated tools + step-count limits),
@@ -216,17 +244,23 @@ tool execution (`READ_DATA` reading from injected synthesized records, not a fil
 `ROUTE` tagging with a Planner-supplied team name, not a fixed employee directory),
 the API endpoints (including 422 on invalid input and 404 on unknown sessions), the
 mini-app endpoints (single-record run, valid/invalid action persistence, action log),
-and 5 end-to-end fixtures run through the *same* generic pipeline for genuinely
-different domains — including one that exists nowhere in any pre-built dataset, and a
-capability-gap test proving the Blueprint fallback still fires correctly when a step
-references a field that was never synthesized (e.g. a hallucinated live-LLM plan).
+file extraction for every supported format (csv/xlsx are tabular with real rows;
+docx/pdf/pptx are text, including a regression test for CSV numeric-string coercion
+that a live browser test caught - `risk_score="72"` silently failed every numeric
+comparison until fixed), and 5 end-to-end fixtures run through the *same* generic
+pipeline for genuinely different domains — including one that exists nowhere in any
+pre-built dataset, and a capability-gap test proving the Blueprint fallback still
+fires correctly when a step references a field that was never synthesized.
 
-Frontend has no separate test runner configured for the MVP; it was verified with a
-Playwright-driven browser pass through the full user journey (landing → example chip →
-submit → processing animation → executed result with workflow diagram/critic
-score/execution trace → reset → out-of-scope input → Blueprint view) and through the
-"try it live" mini-app (pick a record → run → take an action → confirm it's persisted
-in PostgreSQL), confirming zero console errors both times.
+Frontend has no separate test runner configured for the MVP; it was verified with
+Playwright-driven browser passes through: the full typed-text journey (landing →
+example chip → submit → processing animation → executed result with workflow
+diagram/critic score/execution trace → reset → out-of-scope input → Blueprint view),
+the "try it live" mini-app (pick a record → run → take an action → confirm it's
+persisted in PostgreSQL), a CSV file upload (confirms the real uploaded values appear
+in the result, not synthesized ones), and the flowchart builder (drag two shapes onto
+the canvas via real mouse drag events, fill their text, generate a demo from them) —
+confirming zero console errors across all of them.
 
 ## API Documentation
 
@@ -234,6 +268,7 @@ in PostgreSQL), confirming zero console errors both times.
 |---|---|---|
 | `GET` | `/api/health` | Liveness check |
 | `POST` | `/api/demo` | Body: `{"text": "..."}` (5–2000 chars). Runs the full pipeline synchronously and returns a `DemoResult` (includes `mini_app` when `outcome` is `"executed"`) |
+| `POST` | `/api/demo/upload` | Multipart form: `file` (`.csv`/`.xlsx`/`.docx`/`.pdf`/`.pptx`, max 5 MB) + optional `instruction` text. Same `DemoResult` response as `/api/demo` |
 | `GET` | `/api/demo/{session_id}` | Re-fetch a previously generated result |
 | `POST` | `/api/demo/{session_id}/records/{record_id}/run` | Re-runs the session's approved workflow against just this one record; returns an `ExecutionResult` |
 | `POST` | `/api/demo/{session_id}/records/{record_id}/actions` | Body: `{"action": "..."}` — must be one of the actions listed in that session's `mini_app.actions`. Persists the action and returns an `ActionLogEntry` |
@@ -275,6 +310,10 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
 - **`relation "demo_sessions" does not exist`** → the backend never got as far as its
   startup step (crashed before `init_db()` ran, or a different `DATABASE_URL` was used
   between runs) — restart it and check the startup logs for a PostgreSQL error.
+- **File upload returns 415** → the extension isn't one of `.csv`/`.xlsx`/`.xls`/`.docx`/`.pdf`/`.pptx`.
+- **File upload returns 422 "no readable text/rows"** → the file parsed but had no
+  header row (csv/xlsx), no first-sheet data, or no extractable text (a scanned/
+  image-only PDF has no text layer for `pypdf` to read).
 
 ## Known Limitations
 
@@ -297,6 +336,18 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
   PostgreSQL for audit purposes, but don't trigger any real external system (no actual
   email/Slack/CRM call) — consistent with the Tool Registry's "no arbitrary outbound
   calls" safety rule for this MVP.
+- Uploaded `.docx`/`.pdf`/`.pptx` files are read as plain text only - tables/images
+  inside a PDF or PowerPoint aren't extracted as structured data (a docx's own tables
+  are, since `python-docx` exposes them directly). Uploaded `.csv`/`.xlsx` files are
+  capped at 200 rows and any file at 5 MB, to keep a demo session responsive.
+- The flowchart builder is intentionally free-form (not tied to the Tool Registry) -
+  it can't guarantee the resulting workflow does exactly what the diagram shows, only
+  that the diagram's steps and connections are passed as context to the same
+  Requirement Agent a typed prompt would use.
+- The `goal` field is truncated at 200 characters (a pre-existing limit that predates
+  file import/flowchart); a long flowchart-derived description can visibly cut off
+  mid-sentence in the result screen. Cosmetic only - the full untruncated text is what
+  the Requirement Agent actually reasoned over.
 
 ## Recommended Next Improvements
 
@@ -309,3 +360,8 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
 - Broaden the deterministic (no API key) field-cue and record-label heuristics in
   `agents/requirement_agent.py` so fallback mode produces more domain-specific sample
   fields for a wider range of business problems, not just the ones with a keyword hit.
+- Extract tables from PDFs/PowerPoint slides as structured data (currently text-only),
+  and consider OCR for scanned/image-only PDFs.
+- Offer an optional "tie shapes to Tool Registry actions" mode in the flowchart
+  builder for customers who want a guaranteed-executable diagram rather than a
+  free-form one that's interpreted as context.

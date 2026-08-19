@@ -127,3 +127,19 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+
+.landing-manual-link {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.landing-manual-link a {
+  color: var(--accent-2);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing-manual-link a:hover {
+  text-decoration: underline;
+}

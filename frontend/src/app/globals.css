@@ -136,3 +136,28 @@ a {
     gap: 4px;
   }
 }
+
+.flowchart-back-link {
+  text-decoration: none;
+}
+
+.flowchart-back-link:hover {
+  color: var(--accent-2);
+}
+
+.flowchart-title {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+}
+
+.flowchart-subtitle {
+  margin: 0 0 18px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 720px;
+  line-height: 1.5;
+}
+
+.app-main .flowchart-error {
+  margin: 0 0 14px;
+}

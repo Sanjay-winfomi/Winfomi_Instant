@@ -27,6 +27,17 @@ export async function createDemo(text: string): Promise<DemoResult> {
   return handle<DemoResult>(res);
 }
 
+export async function createDemoFromFile(file: File, instruction: string): Promise<DemoResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (instruction.trim()) formData.append("instruction", instruction.trim());
+  const res = await fetch(`${BASE_URL}/api/demo/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  return handle<DemoResult>(res);
+}
+
 export async function getDemo(sessionId: string): Promise<DemoResult> {
   const res = await fetch(`${BASE_URL}/api/demo/${sessionId}`);
   return handle<DemoResult>(res);

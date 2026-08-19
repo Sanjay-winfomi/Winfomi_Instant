@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Link from "next/link";
+import FileUploadCard from "./FileUploadCard";
 import "./LandingScreen.css";
 
 const EXAMPLES = [
@@ -11,11 +13,12 @@ const EXAMPLES = [
 
 interface Props {
   onSubmit: (text: string) => void;
+  onSubmitFile: (file: File, instruction: string) => void;
   errorMessage: string | null;
   initialText: string;
 }
 
-export default function LandingScreen({ onSubmit, errorMessage, initialText }: Props) {
+export default function LandingScreen({ onSubmit, onSubmitFile, errorMessage, initialText }: Props) {
   const [text, setText] = useState(initialText);
   const [touched, setTouched] = useState(false);
 
@@ -78,6 +81,13 @@ export default function LandingScreen({ onSubmit, errorMessage, initialText }: P
             </button>
           ))}
         </div>
+      </div>
+
+      <FileUploadCard onSubmitFile={onSubmitFile} errorMessage={null} />
+
+      <div className="landing-manual-link">
+        Prefer to design it yourself?{" "}
+        <Link href="/flowchart">Build a flowchart manually →</Link>
       </div>
     </section>
   );

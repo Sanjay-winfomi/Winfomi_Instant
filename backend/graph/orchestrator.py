@@ -9,6 +9,10 @@ Requirement -> Planner -> Validate (Tool Registry safety layer) -> Critic
 Sample data is generated fresh per requirement (agents/data_synthesizer.py) rather
 than read from a fixed set of pre-built mock datasets - the Executor itself never
 calls an LLM or generates data; it only ever processes records it's handed.
+
+If the caller already has REAL data (e.g. an uploaded CSV/Excel file), pass it as
+`override_records`/`override_fields`/`override_record_label` to run_pipeline() and
+synthesis is skipped entirely - the workflow runs against the customer's actual data.
 """
 from __future__ import annotations
 
@@ -34,6 +38,9 @@ logger = get_logger(__name__)
 
 class PipelineState(TypedDict, total=False):
     text: str
+    override_records: list[dict[str, Any]] | None
+    override_fields: list[str] | None
+    override_record_label: str | None
     requirement: Requirement
     requirement_mode: str
     workflow: Workflow
@@ -53,6 +60,12 @@ class PipelineState(TypedDict, total=False):
 
 def _requirement_node(state: PipelineState) -> dict:
     requirement, mode = analyze_requirement(state["text"])
+    # Real uploaded data always wins over a guessed/LLM-inferred shape - the file's
+    # own columns ARE the ground truth for record_label/fields.
+    if state.get("override_record_label"):
+        requirement.record_label = state["override_record_label"]
+    if state.get("override_fields"):
+        requirement.fields = state["override_fields"]
     logger.info("Requirement analyzed (mode=%s): %s", mode, requirement.goal)
     return {"requirement": requirement, "requirement_mode": mode, "attempt": 0, "critic_history": []}
 
@@ -86,8 +99,13 @@ def _critic_node(state: PipelineState) -> dict:
 
 def _executor_node(state: PipelineState) -> dict:
     requirement: Requirement = state["requirement"]
-    records, dataset_mode = synthesize_dataset(requirement)
-    logger.info("Synthesized %d sample '%s' record(s) (mode=%s)", len(records), requirement.record_label, dataset_mode)
+
+    if state.get("override_records"):
+        records, dataset_mode = state["override_records"], "uploaded_file"
+        logger.info("Using %d uploaded '%s' record(s) - no synthesis.", len(records), requirement.record_label)
+    else:
+        records, dataset_mode = synthesize_dataset(requirement)
+        logger.info("Synthesized %d sample '%s' record(s) (mode=%s)", len(records), requirement.record_label, dataset_mode)
 
     try:
         execution = run_workflow(state["workflow"], state["text"], records=records, record_label=requirement.record_label)
@@ -171,7 +189,17 @@ def get_compiled_graph():
     return _compiled_graph
 
 
-def run_pipeline(text: str) -> PipelineState:
+def run_pipeline(
+    text: str,
+    override_records: list[dict[str, Any]] | None = None,
+    override_fields: list[str] | None = None,
+    override_record_label: str | None = None,
+) -> PipelineState:
     graph = get_compiled_graph()
-    final_state = graph.invoke({"text": text})
+    final_state = graph.invoke({
+        "text": text,
+        "override_records": override_records,
+        "override_fields": override_fields,
+        "override_record_label": override_record_label,
+    })
     return final_state

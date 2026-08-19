@@ -1,13 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
-import LandingScreen from "@/components/LandingScreen";
+import FlowchartBuilder from "@/components/FlowchartBuilder";
 import ProcessingScreen from "@/components/ProcessingScreen";
 import ResultScreen from "@/components/ResultScreen";
-import { ApiError, createDemo, createDemoFromFile } from "@/services/api";
+import { ApiError, createDemo } from "@/services/api";
 import type { DemoResult } from "@/types/api";
 
-type Stage = "landing" | "processing" | "result";
+type Stage = "canvas" | "processing" | "result";
 
 const MIN_PROCESSING_MS = 3600;
 
@@ -15,16 +16,14 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export default function Home() {
-  const [stage, setStage] = useState<Stage>("landing");
+export default function FlowchartPage() {
+  const [stage, setStage] = useState<Stage>("canvas");
   const [result, setResult] = useState<DemoResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [lastText, setLastText] = useState("");
   const requestIdRef = useRef(0);
 
-  const runDemo = useCallback(async (text: string) => {
+  const handleGenerate = useCallback(async (text: string) => {
     const requestId = ++requestIdRef.current;
-    setLastText(text);
     setErrorMessage(null);
     setStage("processing");
 
@@ -40,36 +39,14 @@ export default function Home() {
           ? err.message
           : "Could not reach the AI workflow service. Please check that the backend is running and try again.";
       setErrorMessage(message);
-      setStage("landing");
-    }
-  }, []);
-
-  const runDemoFromFile = useCallback(async (file: File, instruction: string) => {
-    const requestId = ++requestIdRef.current;
-    setLastText(`Uploaded file: ${file.name}`);
-    setErrorMessage(null);
-    setStage("processing");
-
-    try {
-      const [demoResult] = await Promise.all([createDemoFromFile(file, instruction), sleep(MIN_PROCESSING_MS)]);
-      if (requestIdRef.current !== requestId) return;
-      setResult(demoResult);
-      setStage("result");
-    } catch (err) {
-      if (requestIdRef.current !== requestId) return;
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : "Could not reach the AI workflow service. Please check that the backend is running and try again.";
-      setErrorMessage(message);
-      setStage("landing");
+      setStage("canvas");
     }
   }, []);
 
   const handleReset = useCallback(() => {
     setResult(null);
     setErrorMessage(null);
-    setStage("landing");
+    setStage("canvas");
   }, []);
 
   return (
@@ -79,17 +56,22 @@ export default function Home() {
           <span className="brand-mark">◈</span>
           <span>Instant AI Agent Sandbox</span>
         </div>
-        <div className="brand-tagline">Describe it. Watch it build itself. Try it live.</div>
+        <Link href="/" className="brand-tagline flowchart-back-link">
+          ← Back to describing it in text
+        </Link>
       </header>
 
       <main className="app-main">
-        {stage === "landing" && (
-          <LandingScreen
-            onSubmit={runDemo}
-            onSubmitFile={runDemoFromFile}
-            errorMessage={errorMessage}
-            initialText={lastText}
-          />
+        {stage === "canvas" && (
+          <>
+            <h2 className="flowchart-title">Design your workflow manually</h2>
+            <p className="flowchart-subtitle">
+              Drag shapes onto the canvas, connect them, and describe each step. When you&apos;re done, the same AI
+              pipeline (Requirement → Planner → Critic → Executor) builds a working demo from your flowchart.
+            </p>
+            {errorMessage && <p className="flowchart-error">{errorMessage}</p>}
+            <FlowchartBuilder onGenerate={handleGenerate} />
+          </>
         )}
         {stage === "processing" && <ProcessingScreen />}
         {stage === "result" && result && <ResultScreen result={result} onReset={handleReset} />}
