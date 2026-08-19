@@ -33,6 +33,9 @@ against real mock data, and interact with the result — all in seconds.
   retry loop and Blueprint fallback — is fully demoable with zero external dependencies.
 - **Live workflow visualization** — React Flow diagram of the generated workflow, with
   per-step status/duration once executed.
+- **Real persistence** — every demo session (requirement, workflow, critic scores,
+  execution trace, blueprint) is written to PostgreSQL, so a session survives a backend
+  restart and can be inspected directly in pgAdmin4.
 
 ## Architecture
 
@@ -55,6 +58,9 @@ backend/ (FastAPI)
               │
               ▼ (capability gap)
         Workflow Blueprint
+              │
+              ▼ (every outcome)
+   api/store.py ──▶ PostgreSQL (demo_sessions table)
 ```
 
 LangGraph models the graph exactly as: `analyze_requirement → plan_workflow →
@@ -72,9 +78,11 @@ build_blueprint)`. See `backend/graph/orchestrator.py`.
 - **LLM:** Anthropic Claude, wired behind a small `LLMProvider` abstraction
   (`backend/agents/llm_provider.py`) so OpenAI/Gemini can be added later without
   touching any agent code — only `LLM_PROVIDER` and one new subclass.
-- **Data:** flat JSON mock datasets (`backend/mock_data/`) — no database needed for the
-  MVP; sessions are held in an in-memory store (`backend/api/store.py`) for the process
-  lifetime.
+- **Data:** flat JSON mock datasets (`backend/mock_data/`) that the Executor's tools
+  actually operate on, plus **PostgreSQL** for demo-session persistence — via
+  SQLAlchemy 2.0 (`backend/database/`), with tables created automatically on startup
+  (`database/init_db.py`). Every DB access goes through `backend/api/store.py`; no
+  other module touches SQLAlchemy directly.
 
 ## Project Structure
 
@@ -84,10 +92,11 @@ backend/
   tools/             the Tool Registry (18 deterministic tools) + mock dataset loader
   graph/             LangGraph orchestration + the safety/validation layer
   schemas/           Pydantic contracts shared by every agent and the API
-  api/               FastAPI routes + in-memory session store
+  database/          SQLAlchemy engine/session, ORM model, table creation
+  api/               FastAPI routes + PostgreSQL-backed session store
   mock_data/         tickets, customers, employees, inventory, invoices, products
   tests/             unit + integration + end-to-end fixture tests
-  main.py            FastAPI app entrypoint
+  main.py            FastAPI app entrypoint (creates DB tables on startup)
 frontend/
   src/components/    LandingScreen, ProcessingScreen, ResultScreen, WorkflowDiagram,
                      CriticScoreCard, ExecutionTrace, BlueprintView
@@ -98,19 +107,29 @@ frontend/
 
 ## Installation
 
-Prerequisites: Python 3.11+ and Node.js 18+.
+Prerequisites: Python 3.11+, Node.js 18+, and a running PostgreSQL server (pgAdmin4 is
+the recommended way to manage it — install [pgAdmin4](https://www.pgadmin.org/), which
+bundles/connects to PostgreSQL, or point at any existing Postgres instance).
 
 ```bash
-# Backend
+# 1. Create the database (once) - open pgAdmin4, connect to your Postgres server,
+#    right-click "Databases" -> Create -> Database..., name it "agent_sandbox".
+#    Or, in pgAdmin4's Query Tool against the "postgres" database:
+#    CREATE DATABASE agent_sandbox;
+
+# 2. Backend
 cd backend
 python -m venv .venv
 ./.venv/Scripts/activate        # Windows: .venv\Scripts\activate ; macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 
-# Frontend
+# 3. Frontend
 cd ../frontend
 npm install
 ```
+
+Tables (`demo_sessions`) are created automatically the first time the backend starts —
+refresh pgAdmin4's Schemas > public > Tables view afterwards to see them.
 
 ## Environment Variables
 
@@ -127,6 +146,7 @@ entirely in deterministic fallback mode).
 | `CRITIC_APPROVAL_THRESHOLD` | No | Defaults to `8.0` |
 | `MAX_PLANNER_RETRIES` | No | Defaults to `2` |
 | `CORS_ORIGINS` | No | Defaults to `http://localhost:5173` |
+| `DATABASE_URL` | No | Defaults to `postgresql+psycopg2://postgres:postgres@localhost:5432/agent_sandbox` — update the user/password/host/port to match your PostgreSQL setup |
 
 For the frontend, copy `frontend/.env.example` to `frontend/.env`:
 
@@ -134,7 +154,7 @@ For the frontend, copy `frontend/.env.example` to `frontend/.env`:
 |---|---|
 | `VITE_API_BASE_URL` | Defaults to `http://localhost:8000` |
 
-`SUPABASE_URL`, `SLACK_TOKEN`, `EMAIL_SERVICE_API_KEY`, `CRM_API_KEY` are listed in
+`SLACK_TOKEN`, `EMAIL_SERVICE_API_KEY`, `CRM_API_KEY` are listed in
 `.env.example` as stretch goals only — nothing in the MVP reads them.
 
 ## Running Locally
@@ -159,6 +179,10 @@ functional, not an error state.
 cd backend
 ./.venv/Scripts/python.exe -m pytest -q
 ```
+
+Requires PostgreSQL to be running and reachable via `DATABASE_URL` — the API tests
+exercise the real `demo_sessions` table (via `TestClient` as a context manager, so the
+FastAPI lifespan/`init_db()` runs first).
 
 26 tests covering: Requirement Agent schema output, Planner tool-registry compliance,
 Critic scoring determinism, workflow validation (hallucinated tools + step-count limits),
@@ -191,8 +215,9 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
 — not required by the current scope):
 
 - **Backend:** any ASGI host (Render, Fly.io, a VM) running
-  `uvicorn main:app --host 0.0.0.0 --port $PORT`. Set `ANTHROPIC_API_KEY` and
-  `CORS_ORIGINS` (your deployed frontend origin) as environment variables.
+  `uvicorn main:app --host 0.0.0.0 --port $PORT`. Set `ANTHROPIC_API_KEY`,
+  `CORS_ORIGINS` (your deployed frontend origin), and `DATABASE_URL` (pointing at a
+  managed PostgreSQL instance) as environment variables.
 - **Frontend:** `npm run build` produces a static `frontend/dist/` bundle deployable to
   Vercel/Netlify/any static host. Set `VITE_API_BASE_URL` to the deployed backend URL at
   build time.
@@ -209,13 +234,15 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
   domains, not a failure.
 - **CORS errors in the browser console** → add your frontend's origin to `CORS_ORIGINS`
   in the backend's `.env`.
+- **`sqlalchemy.exc.OperationalError` / "connection refused" on startup** → PostgreSQL
+  isn't running, or `DATABASE_URL` doesn't match your server's host/port/credentials.
+  Check the connection in pgAdmin4 first.
+- **`relation "demo_sessions" does not exist`** → the backend never got as far as its
+  startup step (crashed before `init_db()` ran, or a different `DATABASE_URL` was used
+  between runs) — restart it and check the startup logs for a PostgreSQL error.
 
 ## Known Limitations
 
-- Sessions are stored in memory only; restarting the backend clears all past demo
-  results (no SQLite/Postgres persistence in this MVP — the store module is isolated
-  behind `api/store.py` so swapping in a real database later doesn't touch any agent or
-  route logic).
 - Only Anthropic is implemented as a live LLM provider; OpenAI/Gemini are stubbed to
   fall back to deterministic mode until implemented.
 - The Executor's capability-gap detection is field-existence based (does the target
@@ -223,12 +250,15 @@ This MVP is designed to run as two independent processes (no Docker Compose is i
   field exists but the *semantics* don't match what was asked.
 - No authentication — acceptable for a self-serve public demo sandbox, not for handling
   sensitive customer data.
+- Schema changes are applied via `Base.metadata.create_all()` (new tables only, no
+  migration history) — fine for this MVP's single table; a schema that evolves further
+  should move to Alembic.
 
 ## Recommended Next Improvements
 
 - Stream intermediate agent/step events over Server-Sent Events instead of the
   client-side fixed-duration animation, once the Executor does real (slower) I/O.
-- Promote session storage to Postgres/Supabase for persistence across restarts.
+- Add Alembic migrations once the schema needs to evolve beyond `create_all()`.
 - Add a lead-capture step ("Request Full Solution") wired to a CRM, once product
   scope calls for it.
 - Add OpenAI/Gemini `LLMProvider` implementations behind the existing abstraction.

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/agent_sandbox"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
