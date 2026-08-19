@@ -1,0 +1,127 @@
+.critic-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+}
+
+.critic-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.critic-card-title {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.critic-card-score {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.critic-card-score-max {
+  font-size: 1rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.critic-badge {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.critic-badge--approved {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--success);
+}
+
+.critic-badge--rejected {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--danger);
+}
+
+.critic-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.critic-bar-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
+.critic-bar-label {
+  color: var(--text-muted);
+}
+
+.critic-bar-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.critic-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+  border-radius: 999px;
+}
+
+.critic-bar-value {
+  width: 28px;
+  text-align: right;
+  color: var(--text-primary);
+}
+
+.critic-history {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--card-border);
+}
+
+.critic-history-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.critic-history-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.critic-history-pill {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
+}
+
+.critic-history-pill.is-approved {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--success);
+}
+
+.critic-feedback {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

@@ -1,0 +1,77 @@
+.execution-trace {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trace-row {
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.trace-row--failed {
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.trace-row-header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 24px 1fr 2fr 60px 16px;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.trace-row-index {
+  color: var(--text-muted);
+}
+
+.trace-row-tool {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.trace-row-summary {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace-row-duration {
+  color: var(--accent-2);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.trace-row-caret {
+  color: var(--text-muted);
+}
+
+.trace-row-detail {
+  margin: 0;
+  padding: 12px 14px 16px 48px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.2);
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .trace-row-header {
+    grid-template-columns: 20px 1fr 50px 14px;
+  }
+  .trace-row-summary {
+    display: none;
+  }
+}

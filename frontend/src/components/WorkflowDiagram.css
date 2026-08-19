@@ -1,0 +1,67 @@
+.workflow-diagram {
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--card-border);
+}
+
+.flow-node {
+  min-width: 170px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1.5px solid var(--card-border);
+  background: #161b28;
+  font-size: 0.82rem;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.flow-node-label {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+}
+
+.flow-node-status {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.flow-node--data {
+  border-color: rgba(34, 211, 238, 0.5);
+}
+
+.flow-node--ai {
+  border-color: rgba(124, 92, 255, 0.55);
+}
+
+.flow-node--logic {
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.flow-node--decision {
+  border-color: rgba(251, 191, 36, 0.75);
+  border-radius: 999px;
+}
+
+.flow-node--action {
+  border-color: rgba(52, 211, 153, 0.5);
+}
+
+.flow-node--success {
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.35);
+}
+
+.flow-node--failed {
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.4);
+}
+
+.flow-node--blocked {
+  opacity: 0.55;
+}
+
+.react-flow__handle {
+  opacity: 0;
+}

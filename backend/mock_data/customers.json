@@ -1,0 +1,7 @@
+[
+  {"customer_id": "C-01", "name": "NovaTech Inc", "monthly_spend": 4200, "logins_last_30d": 2, "support_tickets_last_30d": 5, "contract_renewal_days": 20, "nps_score": 3},
+  {"customer_id": "C-02", "name": "Blue Harbor Retail", "monthly_spend": 1800, "logins_last_30d": 25, "support_tickets_last_30d": 0, "contract_renewal_days": 210, "nps_score": 9},
+  {"customer_id": "C-03", "name": "Silverline Logistics", "monthly_spend": 9600, "logins_last_30d": 1, "support_tickets_last_30d": 8, "contract_renewal_days": 15, "nps_score": 2},
+  {"customer_id": "C-04", "name": "Coastal Media Group", "monthly_spend": 3100, "logins_last_30d": 18, "support_tickets_last_30d": 1, "contract_renewal_days": 150, "nps_score": 8},
+  {"customer_id": "C-05", "name": "Everline Manufacturing", "monthly_spend": 7300, "logins_last_30d": 4, "support_tickets_last_30d": 6, "contract_renewal_days": 10, "nps_score": 4}
+]

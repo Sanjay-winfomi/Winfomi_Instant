@@ -1,0 +1,7 @@
+[
+  {"product": "Laptop X", "sku": "SKU-100", "current_stock": 14, "reorder_threshold_pct": 20, "max_stock": 100, "supplier": "ABC Electronics"},
+  {"product": "Wireless Mouse", "sku": "SKU-101", "current_stock": 340, "reorder_threshold_pct": 20, "max_stock": 500, "supplier": "PeriphSource Co"},
+  {"product": "27in Monitor", "sku": "SKU-102", "current_stock": 9, "reorder_threshold_pct": 15, "max_stock": 80, "supplier": "DisplayWorks Ltd"},
+  {"product": "USB-C Dock", "sku": "SKU-103", "current_stock": 60, "reorder_threshold_pct": 25, "max_stock": 200, "supplier": "PeriphSource Co"},
+  {"product": "Mechanical Keyboard", "sku": "SKU-104", "current_stock": 5, "reorder_threshold_pct": 20, "max_stock": 60, "supplier": "PeriphSource Co"}
+]

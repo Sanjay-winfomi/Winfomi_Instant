@@ -1,0 +1,8 @@
+[
+  {"ticket_id": "T-201", "subject": "Cannot log into my account", "body": "I've tried resetting my password three times and still can't log in.", "customer_tier": "gold", "urgency": "normal"},
+  {"ticket_id": "T-202", "subject": "This is unacceptable, immediate refund needed", "body": "I was charged twice and nobody has responded in 3 days, this is urgent and unacceptable.", "customer_tier": "gold", "urgency": "urgent"},
+  {"ticket_id": "T-203", "subject": "App crashes on startup", "body": "The mobile app crashes immediately after the splash screen on Android 14.", "customer_tier": "standard", "urgency": "normal"},
+  {"ticket_id": "T-204", "subject": "Feature request: dark mode", "body": "Would love a dark mode option for the dashboard.", "customer_tier": "standard", "urgency": "low"},
+  {"ticket_id": "T-205", "subject": "URGENT: production data not syncing", "body": "Our production sync has been failing since this morning, this is blocking our entire team and needs immediate attention.", "customer_tier": "enterprise", "urgency": "urgent"},
+  {"ticket_id": "T-206", "subject": "Question about billing cycle", "body": "Could you clarify when my next billing cycle starts?", "customer_tier": "standard", "urgency": "low"}
+]
