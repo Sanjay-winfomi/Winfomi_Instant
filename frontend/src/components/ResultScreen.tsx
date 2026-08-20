@@ -1,17 +1,20 @@
 import type { DemoResult } from "../types/api";
 import BlueprintView from "./BlueprintView";
 import CriticScoreCard from "./CriticScoreCard";
+import DynamicMiniAppRenderer from "./DynamicMiniAppRenderer";
 import ExecutionTrace from "./ExecutionTrace";
-import MiniApp from "./MiniApp";
 import "./ResultScreen.css";
 import WorkflowDiagram from "./WorkflowDiagram";
 
 interface Props {
   result: DemoResult;
   onReset: () => void;
+  /** True from the company portal's demo preview (spec §34) - same renderer, but
+   * interactive actions are disabled since there's no client lead session here. */
+  readOnly?: boolean;
 }
 
-export default function ResultScreen({ result, onReset }: Props) {
+export default function ResultScreen({ result, onReset, readOnly = false }: Props) {
   if (result.outcome === "error" || !result.requirement) {
     return (
       <section className="result-screen">
@@ -49,10 +52,10 @@ export default function ResultScreen({ result, onReset }: Props) {
             <WorkflowDiagram steps={displaySteps} stepResults={result.execution?.step_results} />
           </div>
 
-          {result.outcome === "executed" && result.mini_app && (
+          {result.outcome === "executed" && result.ui_schema && (
             <div className="panel">
               <span className="panel-title">Try it live</span>
-              <MiniApp sessionId={result.session_id} miniApp={result.mini_app} />
+              <DynamicMiniAppRenderer sessionId={result.session_id} schema={result.ui_schema} readOnly={readOnly} />
             </div>
           )}
 

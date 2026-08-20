@@ -21,6 +21,12 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/agent_sandbox"
 
+    jwt_secret: str = "dev-only-insecure-secret-change-me"
+    jwt_expire_minutes: int = 24 * 60
+
+    seed_admin_email: str = "admin@winfomi.com"
+    seed_admin_password: str = "ChangeMe123!"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

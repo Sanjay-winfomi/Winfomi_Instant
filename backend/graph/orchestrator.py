@@ -16,7 +16,8 @@ synthesis is skipped entirely - the workflow runs against the customer's actual 
 """
 from __future__ import annotations
 
-from typing import Any, TypedDict
+import time
+from typing import Any, Callable, TypedDict
 
 from langgraph.graph import END, StateGraph
 
@@ -25,15 +26,17 @@ from agents.data_synthesizer import synthesize_dataset
 from agents.executor_agent import UnsupportedCapabilityError, run_workflow
 from agents.planner_agent import plan_workflow
 from agents.requirement_agent import analyze_requirement
-from core.config import get_settings
 from core.logging import get_logger
 from schemas.critic import CriticResult
 from schemas.execution import ExecutionResult, WorkflowBlueprint
 from schemas.requirement import Requirement
 from schemas.workflow import Workflow
+from services.settings_service import get_effective_settings
 from graph.validation import validate_workflow
 
 logger = get_logger(__name__)
+
+OnStage = Callable[[str], None]
 
 
 class PipelineState(TypedDict, total=False):
@@ -41,6 +44,9 @@ class PipelineState(TypedDict, total=False):
     override_records: list[dict[str, Any]] | None
     override_fields: list[str] | None
     override_record_label: str | None
+    requirement_hint: Requirement | None
+    session_id: str | None
+    on_stage: OnStage | None
     requirement: Requirement
     requirement_mode: str
     workflow: Workflow
@@ -58,24 +64,77 @@ class PipelineState(TypedDict, total=False):
     error: str | None
 
 
+def _emit(state: PipelineState, stage: str) -> None:
+    on_stage = state.get("on_stage")
+    if on_stage:
+        try:
+            on_stage(stage)
+        except Exception:  # noqa: BLE001 - progress reporting must never break the pipeline
+            logger.exception("on_stage callback failed")
+
+
+def _record_agent_execution(session_id: str | None, agent_name: str, attempt: int, start: float, error: str | None = None) -> None:
+    if not session_id:
+        return
+    from api.store import save_agent_execution  # local import - avoids a circular import at module load time
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    try:
+        save_agent_execution(
+            session_id=session_id,
+            agent_name=agent_name,
+            status="error" if error else "success",
+            duration_ms=duration_ms,
+            attempt=attempt,
+            error_message=error,
+        )
+    except Exception:  # noqa: BLE001 - instrumentation must never break the pipeline
+        logger.exception("Failed to record agent execution for %s", agent_name)
+
+
 def _requirement_node(state: PipelineState) -> dict:
-    requirement, mode = analyze_requirement(state["text"])
-    # Real uploaded data always wins over a guessed/LLM-inferred shape - the file's
-    # own columns ARE the ground truth for record_label/fields.
-    if state.get("override_record_label"):
-        requirement.record_label = state["override_record_label"]
-    if state.get("override_fields"):
-        requirement.fields = state["override_fields"]
-    logger.info("Requirement analyzed (mode=%s): %s", mode, requirement.goal)
-    return {"requirement": requirement, "requirement_mode": mode, "attempt": 0, "critic_history": []}
+    _emit(state, "understanding")
+    start = time.perf_counter()
+    error: str | None = None
+    try:
+        requirement, mode = analyze_requirement(state["text"])
+        # Real uploaded data always wins over a guessed/LLM-inferred shape - the file's
+        # own columns ARE the ground truth for record_label/fields.
+        if state.get("override_record_label"):
+            requirement.record_label = state["override_record_label"]
+        if state.get("override_fields"):
+            requirement.fields = state["override_fields"]
+        # A modification carries the prior requirement's fields/decision forward so a
+        # refinement doesn't discard a working shape (spec §20 - preserve valid parts).
+        hint = state.get("requirement_hint")
+        if hint:
+            requirement.fields = sorted(set(requirement.fields) | set(hint.fields))[:8]
+            requirement.decision = requirement.decision or hint.decision
+            requirement.condition = requirement.condition or hint.condition
+        logger.info("Requirement analyzed (mode=%s): %s", mode, requirement.goal)
+        return {"requirement": requirement, "requirement_mode": mode, "attempt": 0, "critic_history": []}
+    except Exception as exc:  # noqa: BLE001
+        error = str(exc)
+        raise
+    finally:
+        _record_agent_execution(state.get("session_id"), "requirement", 1, start, error)
 
 
 def _planner_node(state: PipelineState) -> dict:
+    _emit(state, "designing")
     attempt = state.get("attempt", 0) + 1
-    feedback = state.get("critic").feedback if state.get("critic") else None
-    workflow, mode = plan_workflow(state["requirement"], feedback=feedback, attempt=attempt)
-    logger.info("Planned workflow attempt %d (mode=%s): %d step(s)", attempt, mode, len(workflow.steps))
-    return {"workflow": workflow, "planner_mode": mode, "attempt": attempt}
+    start = time.perf_counter()
+    error: str | None = None
+    try:
+        feedback = state.get("critic").feedback if state.get("critic") else None
+        workflow, mode = plan_workflow(state["requirement"], feedback=feedback, attempt=attempt)
+        logger.info("Planned workflow attempt %d (mode=%s): %d step(s)", attempt, mode, len(workflow.steps))
+        return {"workflow": workflow, "planner_mode": mode, "attempt": attempt}
+    except Exception as exc:  # noqa: BLE001
+        error = str(exc)
+        raise
+    finally:
+        _record_agent_execution(state.get("session_id"), "planner", attempt, start, error)
 
 
 def _validate_node(state: PipelineState) -> dict:
@@ -85,20 +144,32 @@ def _validate_node(state: PipelineState) -> dict:
 
 
 def _critic_node(state: PipelineState) -> dict:
-    critic, mode = critique_workflow(
-        requirement=state["requirement"],
-        workflow=state["workflow"],
-        rejected_count=len(state.get("rejected_steps", [])),
-        total_proposed=len(state["workflow"].steps) + len(state.get("rejected_steps", [])),
-        attempt=state.get("attempt", 1),
-    )
-    history = list(state.get("critic_history", [])) + [critic]
-    logger.info("Critic score attempt %d: %.2f (approved=%s, mode=%s)", state.get("attempt", 1), critic.overall_score, critic.approved, mode)
-    return {"critic": critic, "critic_history": history, "critic_mode": mode}
+    _emit(state, "validating")
+    start = time.perf_counter()
+    error: str | None = None
+    try:
+        critic, mode = critique_workflow(
+            requirement=state["requirement"],
+            workflow=state["workflow"],
+            rejected_count=len(state.get("rejected_steps", [])),
+            total_proposed=len(state["workflow"].steps) + len(state.get("rejected_steps", [])),
+            attempt=state.get("attempt", 1),
+        )
+        history = list(state.get("critic_history", [])) + [critic]
+        logger.info("Critic score attempt %d: %.2f (approved=%s, mode=%s)", state.get("attempt", 1), critic.overall_score, critic.approved, mode)
+        return {"critic": critic, "critic_history": history, "critic_mode": mode}
+    except Exception as exc:  # noqa: BLE001
+        error = str(exc)
+        raise
+    finally:
+        _record_agent_execution(state.get("session_id"), "critic", state.get("attempt", 1), start, error)
 
 
 def _executor_node(state: PipelineState) -> dict:
+    _emit(state, "preparing")
     requirement: Requirement = state["requirement"]
+    start = time.perf_counter()
+    error: str | None = None
 
     if state.get("override_records"):
         records, dataset_mode = state["override_records"], "uploaded_file"
@@ -112,6 +183,7 @@ def _executor_node(state: PipelineState) -> dict:
         return {"execution": execution, "outcome": "executed", "dataset_records": records, "dataset_mode": dataset_mode}
     except UnsupportedCapabilityError as exc:
         logger.info("Executor hit a capability gap: %s", exc)
+        error = str(exc)
         blueprint = _build_blueprint(state, integration_note=(
             f"This workflow needs a '{exc.field}' field that isn't part of the generated "
             f"sample data for '{exc.record_label}' records. Connecting a live data source "
@@ -119,14 +191,17 @@ def _executor_node(state: PipelineState) -> dict:
             f"a data warehouse column) would let this step run for real."
         ))
         return {"blueprint": blueprint, "outcome": "blueprint", "dataset_records": records, "dataset_mode": dataset_mode}
+    finally:
+        _record_agent_execution(state.get("session_id"), "executor", state.get("attempt", 1), start, error)
 
 
 def _blueprint_node(state: PipelineState) -> dict:
+    _emit(state, "preparing")
     blueprint = _build_blueprint(
         state,
         integration_note=(
             "The generated workflow didn't reach the required quality bar after "
-            f"{get_settings().max_planner_retries + 1} attempt(s). Below is the best "
+            f"{get_effective_settings().max_planner_retries + 1} attempt(s). Below is the best "
             "workflow blueprint produced so far, along with what it would take to run it live."
         ),
     )
@@ -147,7 +222,7 @@ def _build_blueprint(state: PipelineState, integration_note: str) -> WorkflowBlu
 
 def _after_critic(state: PipelineState) -> str:
     critic: CriticResult = state["critic"]
-    settings = get_settings()
+    settings = get_effective_settings()
     if critic.approved:
         return "executor"
     if state.get("attempt", 1) <= settings.max_planner_retries:
@@ -194,6 +269,9 @@ def run_pipeline(
     override_records: list[dict[str, Any]] | None = None,
     override_fields: list[str] | None = None,
     override_record_label: str | None = None,
+    requirement_hint: Requirement | None = None,
+    session_id: str | None = None,
+    on_stage: OnStage | None = None,
 ) -> PipelineState:
     graph = get_compiled_graph()
     final_state = graph.invoke({
@@ -201,5 +279,8 @@ def run_pipeline(
         "override_records": override_records,
         "override_fields": override_fields,
         "override_record_label": override_record_label,
+        "requirement_hint": requirement_hint,
+        "session_id": session_id,
+        "on_stage": on_stage,
     })
     return final_state

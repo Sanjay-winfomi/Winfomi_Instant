@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import FileUploadCard from "./FileUploadCard";
-import HeroIllustration from "./HeroIllustration";
 import "./LandingScreen.css";
 
 const EXAMPLES: { title: string; description: string; prompt: string; chip: "green" | "purple" | "amber" | "teal" }[] = [
@@ -63,17 +62,11 @@ export default function LandingScreen({ onSubmit, onSubmitFile, errorMessage, in
 
   return (
     <section className="landing">
-      <div className="landing-hero">
-        <div className="landing-copy">
-          <h1>
-            Describe your problem. Get a working <span className="gradient-text">AI prototype</span> instantly.
-          </h1>
-          <p>
-            Four AI agents — Requirement Analyzer, Planner, Critic, and Executor — design, validate, and run a real
-            workflow from your description. No code, no waiting for a sales call.
-          </p>
-        </div>
-        <HeroIllustration />
+      <div className="landing-copy" style={{ textAlign: "center", maxWidth: 640, margin: "0 auto" }}>
+        <h1 style={{ fontSize: "1.8rem" }}>What do you want to automate?</h1>
+        <p style={{ margin: "0 auto" }}>
+          Describe your business problem in your own words. No technical knowledge required — no categories to pick.
+        </p>
       </div>
 
       <form className="landing-console" onSubmit={handleSubmit}>
@@ -136,36 +129,6 @@ export default function LandingScreen({ onSubmit, onSubmitFile, errorMessage, in
               </svg>
             </button>
           ))}
-        </div>
-      </div>
-
-      <div className="trust-bar">
-        <div className="trust-item">
-          <span className="trust-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m18 16 4-4-4-4M6 8l-4 4 4 4M14.5 4l-5 16" />
-            </svg>
-          </span>
-          <span className="trust-label">No Code Needed</span>
-          <span className="trust-desc">Describe your process in plain English — nothing to configure.</span>
-        </div>
-        <div className="trust-item">
-          <span className="trust-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z" />
-            </svg>
-          </span>
-          <span className="trust-label">Instant Prototypes</span>
-          <span className="trust-desc">A validated, working workflow in seconds, not a scheduled demo.</span>
-        </div>
-        <div className="trust-item">
-          <span className="trust-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
-            </svg>
-          </span>
-          <span className="trust-label">Secure &amp; Private</span>
-          <span className="trust-desc">Every step runs through a validated, deterministic tool registry.</span>
         </div>
       </div>
     </section>

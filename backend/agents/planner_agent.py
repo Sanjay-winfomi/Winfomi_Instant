@@ -18,6 +18,7 @@ from core.config import get_settings
 from core.logging import get_logger
 from schemas.requirement import Requirement
 from schemas.workflow import Workflow, WorkflowStep
+from services.settings_service import get_effective_settings
 from tools.registry import TOOL_DESCRIPTIONS
 
 logger = get_logger(__name__)
@@ -105,7 +106,7 @@ def plan_workflow(
             user_prompt = f"Requirement:\n{requirement.model_dump_json(indent=2)}"
             if feedback:
                 user_prompt += f"\n\nThe previous plan was rejected. Fix these issues:\n" + "\n".join(f"- {f}" for f in feedback)
-            raw = provider.complete_json(_system_prompt(), user_prompt, settings.llm_max_tokens)
+            raw = provider.complete_json(_system_prompt(), user_prompt, get_effective_settings().llm_max_tokens)
             steps = [WorkflowStep(**s) for s in raw.get("steps", [])]
             if not steps:
                 raise ValueError("Planner returned zero steps")

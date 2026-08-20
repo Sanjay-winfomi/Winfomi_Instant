@@ -14,6 +14,7 @@ from core.logging import get_logger
 from schemas.critic import CriticResult, CriticScores, compute_overall_score
 from schemas.requirement import Requirement
 from schemas.workflow import Workflow
+from services.settings_service import get_effective_settings
 
 logger = get_logger(__name__)
 
@@ -88,6 +89,7 @@ def critique_workflow(
     attempt: int = 1,
 ) -> tuple[CriticResult, str]:
     settings = get_settings()
+    effective = get_effective_settings()
     scores: CriticScores | None = None
     feedback: list[str] = []
     mode = "fallback"
@@ -99,7 +101,7 @@ def critique_workflow(
                 f"Requirement:\n{requirement.model_dump_json(indent=2)}\n\n"
                 f"Proposed workflow:\n{workflow.model_dump_json(indent=2)}"
             )
-            raw = provider.complete_json(SYSTEM_PROMPT, user_prompt, settings.llm_max_tokens)
+            raw = provider.complete_json(SYSTEM_PROMPT, user_prompt, effective.llm_max_tokens)
             scores = CriticScores(**raw["scores"])
             feedback = list(raw.get("feedback", []))
             mode = "live"
@@ -110,7 +112,7 @@ def critique_workflow(
         scores, feedback = _fallback_critic(requirement, workflow, rejected_count, total_proposed)
 
     overall = compute_overall_score(scores)
-    approved = overall >= settings.critic_approval_threshold and rejected_count == 0
+    approved = overall >= effective.critic_approval_threshold and rejected_count == 0
 
     return (
         CriticResult(scores=scores, overall_score=overall, approved=approved, feedback=feedback, attempt=attempt),

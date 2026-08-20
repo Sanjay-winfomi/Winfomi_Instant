@@ -15,6 +15,7 @@ from agents.llm_provider import LLMUnavailableError, get_llm_provider
 from core.config import get_settings
 from core.logging import get_logger
 from schemas.requirement import Requirement
+from services.settings_service import get_effective_settings
 
 logger = get_logger(__name__)
 
@@ -134,7 +135,7 @@ def analyze_requirement(text: str) -> tuple[Requirement, str]:
     if settings.is_live:
         try:
             provider = get_llm_provider()
-            raw = provider.complete_json(SYSTEM_PROMPT, text, settings.llm_max_tokens)
+            raw = provider.complete_json(SYSTEM_PROMPT, text, get_effective_settings().llm_max_tokens)
             return Requirement(**raw), "live"
         except (LLMUnavailableError, Exception) as exc:  # noqa: BLE001 - deliberate broad fallback
             logger.warning("Requirement agent falling back to deterministic mode: %s", exc)

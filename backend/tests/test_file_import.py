@@ -20,6 +20,13 @@ def client():
         yield c
 
 
+@pytest.fixture(scope="module")
+def client_headers(client):
+    resp = client.post("/api/client/session", json={"email": "file-import-tests@example.com"})
+    assert resp.status_code == 200
+    return {"X-Client-Token": resp.json()["client_token"]}
+
+
 def test_csv_extraction_is_tabular_with_real_rows():
     csv_bytes = b"customer_name,risk_score,status\nAcme Co,72,active\nBeta Inc,15,active\n"
     result = extract_from_file("customers.csv", csv_bytes)
@@ -84,12 +91,13 @@ def test_empty_csv_rejected():
         extract_from_file("empty.csv", b"")
 
 
-def test_upload_csv_uses_real_rows_not_synthesis(client):
+def test_upload_csv_uses_real_rows_not_synthesis(client, client_headers):
     csv_bytes = b"customer_name,risk_score,status\nAcme Co,72,active\nBeta Inc,15,active\nGamma LLC,90,active\n"
     resp = client.post(
-        "/api/demo/upload",
+        "/api/client/demo/upload",
         files={"file": ("customers.csv", csv_bytes, "text/csv")},
         data={"instruction": "Flag customers with risk_score above 50 and alert the sales team."},
+        headers=client_headers,
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -104,7 +112,7 @@ def test_upload_csv_uses_real_rows_not_synthesis(client):
     assert decision_step["output"]["decision"] == "flag_for_action"
 
 
-def test_upload_docx_runs_through_same_pipeline_as_typed_text(client):
+def test_upload_docx_runs_through_same_pipeline_as_typed_text(client, client_headers):
     from docx import Document
 
     doc = Document()
@@ -113,19 +121,26 @@ def test_upload_docx_runs_through_same_pipeline_as_typed_text(client):
     doc.save(buf)
 
     resp = client.post(
-        "/api/demo/upload",
+        "/api/client/demo/upload",
         files={"file": ("brief.docx", buf.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        headers=client_headers,
     )
     assert resp.status_code == 200
     assert resp.json()["outcome"] in ("executed", "blueprint")
 
 
-def test_upload_rejects_unsupported_extension(client):
-    resp = client.post("/api/demo/upload", files={"file": ("virus.exe", b"nope", "application/octet-stream")})
+def test_upload_rejects_unsupported_extension(client, client_headers):
+    resp = client.post(
+        "/api/client/demo/upload",
+        files={"file": ("virus.exe", b"nope", "application/octet-stream")},
+        headers=client_headers,
+    )
     assert resp.status_code == 415
 
 
-def test_upload_rejects_oversized_file(client):
+def test_upload_rejects_oversized_file(client, client_headers):
     big = b"a" * (5 * 1024 * 1024 + 1)
-    resp = client.post("/api/demo/upload", files={"file": ("big.csv", big, "text/csv")})
+    resp = client.post(
+        "/api/client/demo/upload", files={"file": ("big.csv", big, "text/csv")}, headers=client_headers
+    )
     assert resp.status_code == 413

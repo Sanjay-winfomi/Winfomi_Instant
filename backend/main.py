@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import router
+from api.client_routes import router as client_router
+from api.company_auth import router as company_auth_router
+from api.company_routes import router as company_router
 from core.config import get_settings
 from core.logging import configure_logging, get_logger
 from database.init_db import init_db
@@ -17,6 +19,9 @@ logger = get_logger(__name__)
 async def lifespan(_: FastAPI):
     try:
         init_db()
+        from services.bootstrap import ensure_seed_admin
+
+        ensure_seed_admin()
     except Exception as exc:
         logger.error(
             "Could not reach PostgreSQL at startup (%s). Demo sessions will fail to "
@@ -27,7 +32,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Self-Serve Instant AI Agent Sandbox", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Winfomi Instant AI Platform", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,4 +42,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router)
+
+@app.get("/api/health")
+def health() -> dict:
+    return {"status": "ok"}
+
+
+app.include_router(client_router)
+app.include_router(company_auth_router)
+app.include_router(company_router)

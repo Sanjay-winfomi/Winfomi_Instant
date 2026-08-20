@@ -16,6 +16,7 @@ from agents.llm_provider import LLMUnavailableError, get_llm_provider
 from core.config import get_settings
 from core.logging import get_logger
 from schemas.requirement import Requirement
+from services.settings_service import get_effective_settings
 
 logger = get_logger(__name__)
 
@@ -89,7 +90,7 @@ def synthesize_dataset(requirement: Requirement) -> tuple[list[dict], str]:
                 f"Fields: {requirement.fields}\n"
                 f"Context (what this data will be used for): {requirement.goal}"
             )
-            raw = provider.complete_json(SYSTEM_PROMPT, user_prompt, settings.llm_max_tokens)
+            raw = provider.complete_json(SYSTEM_PROMPT, user_prompt, get_effective_settings().llm_max_tokens)
             records = raw.get("records", [])
             if isinstance(records, list) and records:
                 slug = _slugify(requirement.record_label)
